@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaders - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>Season leaders</h1><p id="sub">The top players in every major stat this season.</p></div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="How many players"><button data-n="5" aria-pressed="true">Top 5</button><button data-n="10" aria-pressed="false">Top 10</button></div>
+      <select id="team" aria-label="Filter by team"><option value="">All teams</option></select>
+    </div></header>
+  <div id="groups"></div>
+  <p class="muted" style="font-size:.9rem;margin:28px 0">Rate stats need enough volume to qualify: about 14 pass attempts, 6 carries or 2 catches per team game, or one field goal attempt per game. With a team selected, the bar is a quarter of that.</p>
+  <footer>Regular season only. Data from nflverse.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Leaders");
+const q = new URLSearchParams(location.search);
+let n = 5, team = (q.get("team")||"").toUpperCase();
+getJSON("/api/teams").then(d=>{ $("#team").innerHTML += d.teams.map(t=>t.team).sort().map(t=>`<option ${t===team?"selected":""}>${t}</option>`).join(""); });
+document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed", x===b)); n = +b.dataset.n; load(); });
+$("#team").onchange = e => { team = e.target.value; history.replaceState(null,"",team?`?team=${team}`:location.pathname); load(); };
+async function load(){
+  const d = await getJSON(`/api/leaders?n=${n}${team?`&team=${team}`:""}`);
+  $("#sub").textContent = `The top ${team ? `${team} players` : "players"} in every major stat, ${d.season} season through week ${d.through_week}.`;
+  $("#groups").innerHTML = d.groups.map(g=>`<section><div class="sec-head"><h2>${g.group}</h2></div>
+    <div class="lgrid">${g.categories.map(c=>leaderCard(c)).join("")}</div></section>`).join("");
+}
+load();
+</script>
+</body></html>

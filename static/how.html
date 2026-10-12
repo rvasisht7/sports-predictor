@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How it works - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>How it works</h1><p>What goes into each prediction, how the rankings are built, and how accurate it all is. Numbers on this page update with the model.</p></div></header>
+
+  <div class="prose">
+    <div class="toc">
+      <a href="#elo">Elo ratings</a><a href="#model">The full model</a><a href="#rankings">Rankings</a>
+      <a href="#live">Live win chances</a><a href="#fantasy">Fantasy</a><a href="#playoffs">Playoffs</a><a href="#vegas">Vegas</a><a href="#accuracy">Accuracy</a><a href="#limits">Limits</a>
+    </div>
+
+    <h2 id="elo">Elo ratings</h2>
+    <p>Every team has one number. An average team is 1500. Every team started there in 1999, and every rating today is the result of all the games since.</p>
+    <h3>Before a game</h3>
+    <p>The difference between the two ratings, plus a home-field bonus of 48 points, turns into a win chance:</p>
+    <div class="formula">Home win chance = 1 ÷ (1 + 10<sup>−(home rating − away rating + 48) ÷ 400</sup>)</div>
+    <p>A 100-point edge is about a 64% favorite, or roughly 4 points on the scoreboard. The 48-point home bonus is worth about 2 points.</p>
+    <h3>After a game</h3>
+    <p>The winner takes rating points from the loser. How many depends on three things:</p>
+    <ul>
+      <li><strong>Surprise.</strong> The actual result minus the expected result. A 90% favorite that wins gains a little; a 20% underdog that wins gains a lot.</li>
+      <li><strong>Margin.</strong> Winning by 21 counts more than winning by 1, on a log scale, so running up the score barely helps.</li>
+      <li><strong>A favorite adjustment.</strong> Big wins by heavy favorites count slightly less, so strong teams don't inflate just by beating weak ones as expected.</li>
+    </ul>
+    <div class="formula">Points exchanged = 20 × margin multiplier × (actual − expected)</div>
+    <p id="elo-example"></p>
+    <h3>Between seasons</h3>
+    <p>Every team is pulled a third of the way back toward 1500, because rosters, coaches and quarterbacks change over the offseason. A 1650 team starts the next year at 1600.</p>
+    <p>Elo only knows final scores. It doesn't know who played quarterback, who was injured, or whether a win was dominant or lucky. That's what the full model adds.</p>
+
+    <h2 id="model">The full model</h2>
+    <p>The prediction you see on each game combines seven factors, all measured using only what was known before kickoff:</p>
+    <ul>
+      <li><strong>Elo rating</strong>, as above.</li>
+      <li><strong>Team efficiency (EPA).</strong> Expected points added per play measures how much each play helped a team score, compared with an average play from the same down, distance and field position. The model tracks offense EPA per play minus defense EPA allowed, weighting recent games more.</li>
+      <li><strong>Quarterback matchup.</strong> Each starting quarterback's EPA per dropback. Quarterbacks with few snaps are pulled toward backup level until they prove otherwise.</li>
+      <li><strong>QB change.</strong> How the listed starter compares with whoever started the team's previous game. This is what catches an injured or benched starter.</li>
+      <li><strong>Injuries.</strong> Players listed Out or Doubtful, weighted by position and by how many snaps they usually play. Quarterbacks are left out here because the QB factors already cover them.</li>
+      <li><strong>Rest.</strong> The difference in days off, such as a team coming off a bye against one on a short week.</li>
+      <li><strong>Neutral site</strong>, which removes home field for games in places like London.</li>
+    </ul>
+    <p>A logistic regression learns how much each factor matters from past games. Here are the current weights, scaled so they can be compared with each other:</p>
+    <div class="panel weights" id="weights"></div>
+    <p style="margin-top:14px">On each game on the Today page, open the matchup to see how many percentage points each factor added for one team or the other.</p>
+
+    <h2 id="rankings">Rankings</h2>
+    <p>The <strong>power rankings</strong> on the Today page and the rank on each team page are ordered by Elo rating, which reflects results over time.</p>
+    <p>The Teams page also shows <strong>efficiency ranks</strong> for this season: offense by EPA per play gained, defense by EPA per play allowed, and overall by the difference. These can disagree with Elo, and the disagreement is informative. A team ranked much higher in efficiency than in Elo has usually been unlucky in close games and may be better than its record.</p>
+    <p id="rank-example"></p>
+
+    <h2 id="live">Live win chances</h2>
+    <p>During a game, the pregame prediction is turned into an expected margin, then combined with the current score and the time left. Both the remaining expected edge and the remaining uncertainty shrink as the clock runs down, so the line on each game card moves gently early and swings sharply late. This approach comes from statistician Hal Stern.</p>
+    <p>It doesn't yet use possession, field position or timeouts, so it treats being down 3 at the opponent's 10-yard line the same as being down 3 backed up at your own 5.</p>
+
+    <h2 id="fantasy">Fantasy projections</h2>
+    <p>Each player's projection for his next game starts from his recent fantasy production, with each older game counting 10% less than the one after it. Early in the season, last season's average is blended in as if it were two extra games.</p>
+    <p>That baseline is then adjusted two ways. <strong>Matchup:</strong> how many fantasy points the opponent has allowed to that position compared with the league average. <strong>Game script:</strong> how many points Vegas expects the team to score this week compared with its usual total. Both adjustments are deliberately dampened, because testing showed that applying them at full strength made projections worse; early-season defensive numbers are mostly noise. Players listed Out or Doubtful are projected at zero.</p>
+    <p>Start means a projected weekly starter in a typical 12-team league (top 12 QBs and TEs, top 24 RBs, top 30 WRs). Flex means the next tier down. Tested on every week of 2024 and 2025, projections missed by 5.85 PPR points per player on average, against 6.00 for using the season average alone.</p>
+
+    <h2 id="playoffs">Playoff odds and the bracket</h2>
+    <p>The rest of the season is played out 10,000 times using the model's win chance for every remaining game. Each simulated season is seeded the NFL way (four division winners, then three wild cards per conference, with the 1 seed getting a bye and teams re-seeded each round), and the playoffs are played out with Elo ratings. A team's playoff chance is simply the share of simulations where it got in. Tiebreakers are simplified to record, then conference record.</p>
+    <p>The bracket shows the single most likely field and lets you go back to any earlier week to see how the picture changed. Once the real playoffs are set, it shows the actual matchups and results.</p>
+
+    <h2 id="tendencies">Tendencies and matchup keys</h2>
+    <p>Each team's style and efficiency are measured from this season's play-by-play and ranked against the league: how often it passes compared with what's expected in neutral situations, deep shots, 4th-down aggressiveness, pressure, turnovers, third downs and the red zone. Matchup keys compare one team's offense with the other's defense and flag the clearest mismatches, such as an efficient passing game facing a defense that gives up a lot through the air.</p>
+
+    <h2 id="vegas">Vegas</h2>
+    <p>"Vegas" means the betting market's prediction. Sportsbooks adjust their lines until money comes in on both sides, so the final line reflects what thousands of bettors and professional oddsmakers collectively believe. That makes it the hardest benchmark to beat.</p>
+    <p>For past games, the market chance comes from the nflverse schedule data, using the moneylines with the bookmaker's built-in margin removed, or the point spread when moneylines are missing. Those are consensus lines rather than one specific sportsbook.</p>
+
+    <h2 id="accuracy">How accurate is it?</h2>
+    <p>Each season is predicted by a model trained only on earlier seasons, so these results are out-of-sample, like predicting the future.</p>
+    <div class="tiles" id="acc"></div>
+    <p>The <strong>Brier score</strong> measures how close the probabilities were to what happened: 0 is perfect, and always guessing 50% scores 0.25. It rewards being confidently right and punishes being confidently wrong, which makes it a better test than win percentage alone. The Tracker page shows every pick graded.</p>
+
+    <h2 id="limits">Limits</h2>
+    <ul>
+      <li>The betting market still does better over the long run. Even good public models pick only about two-thirds of games correctly, because the NFL is close to random week to week.</li>
+      <li>Injury weights by position are informed estimates, and the roughest part of the model.</li>
+      <li>Weather, coaching changes, and players returning from long injuries aren't modeled.</li>
+      <li>Projected starting quarterbacks for games more than a week out may be out of date.</li>
+    </ul>
+    <p><strong>This is a learning project, not betting advice.</strong> Data comes from nflverse and ESPN.</p>
+  </div>
+  <footer style="margin-top:48px">Built with Python, FastAPI and Chart.js.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("How it works");
+getJSON("/api/backtest").then(d=>{
+  const w = Object.entries(d.weights), max = Math.max(...w.map(([,v])=>Math.abs(v)));
+  $("#weights").innerHTML = w.sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([k,v])=>
+    `<div class="factor"><span>${k}</span><span class="bar"><i style="left:${v>=0?50:50-Math.abs(v)/max*50}%;width:${Math.abs(v)/max*50}%;background:${v>=0?css('--pylon'):css('--sky')}"></i></span>
+     <span class="v">${v>=0?"+":""}${v.toFixed(2)}</span></div>`).join("")
+    + `<p class="muted" style="font-size:.8rem;margin-top:8px">Longer bars matter more. Injuries has a negative weight because more injuries lower a team's chances.</p>`;
+  const tot = k => { let g=0,b=0,a=0; d.seasons.forEach(s=>{ g+=s[k].games; b+=s[k].brier*s[k].games; a+=s[k].accuracy*s[k].games; }); return {games:g, brier:b/g, acc:a/g}; };
+  const m = tot("model"), e = tot("elo"), v = tot("vegas"), first = d.seasons[0].season;
+  const tile = (val,l) => `<div class="tile"><b>${val}</b><span>${l}</span></div>`;
+  $("#acc").innerHTML = tile(pct(m.acc), `Full model, ${m.games.toLocaleString()} games since ${first}`)
+    + tile(m.brier.toFixed(3), "Full model Brier") + tile(e.brier.toFixed(3), `Elo only Brier (${pct(e.acc)})`)
+    + tile(v.brier.toFixed(3), `Vegas Brier (${pct(v.acc)})`);
+});
+getJSON("/api/teams").then(d=>{
+  const t = d.teams, top = t[0];
+  $("#elo-example").textContent = `Right now ${top.name} lead at ${Math.round(top.elo)}, and ${t.at(-1).name} are last at ${Math.round(t.at(-1).elo)}.`;
+  const gaps = t.filter(x=>x.net_rank).map(x=>({...x, gap:x.elo_rank - x.net_rank})).sort((a,b)=>b.gap-a.gap);
+  if (gaps.length && gaps[0].gap >= 5)
+    $("#rank-example").textContent = `This season's biggest gap: ${gaps[0].name} are ${ordinal(gaps[0].elo_rank)} by Elo but ${ordinal(gaps[0].net_rank)} in efficiency.`;
+});
+</script>
+</body></html>

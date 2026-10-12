@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schedule - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>Schedule</h1><p id="sub">Every game, with the model's pick before kickoff and the result after.</p></div>
+    <div class="weeknav"><button id="prev" aria-label="Previous week">←</button><select id="week" aria-label="Week"></select><button id="next" aria-label="Next week">→</button></div></header>
+  <div class="tiles" id="tiles"></div>
+  <div id="days"></div>
+  <footer style="margin-top:40px">Times are US Eastern. Model chances are for fun and learning, not betting advice.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Schedule");
+let weeks = [], week = +new URLSearchParams(location.search).get("week") || null;
+const time12 = t => { if (!t) return "TBD"; const [h,m] = t.split(":").map(Number); return `${(h%12)||12}:${String(m).padStart(2,"0")} ${h<12?"AM":"PM"} ET`; };
+const dayLabel = (d, wd) => new Date(d+"T12:00:00").toLocaleDateString([], {weekday:"long", month:"long", day:"numeric"});
+
+function gameHTML(g){
+  const hp = g.model_home_prob, done = g.completed;
+  const side = (t, isHome) => {
+    const sc = isHome ? g.home_score : g.away_score, opp = isHome ? g.away_score : g.home_score;
+    const cls = done ? (sc > opp ? "won" : sc < opp ? "lost" : "") : "";
+    const p = isHome ? hp : 1 - hp;
+    return `<div class="t ${cls}"><span class="ab">${starBtn(t)}${teamLink(t)}</span>
+      <span class="pc">${pct(p)}</span><span class="sc">${done ? sc : ""}</span></div>`;
+  };
+  let bot;
+  if (done){
+    const v = g.correct===null ? "Tie" : g.correct ? `<span class="ok">Model right</span>` : `<span class="no">Model wrong</span>`;
+    bot = `${v}: picked ${g.pick} at ${pct(Math.max(hp,1-hp))}`;
+  } else {
+    bot = `Model picks <strong style="color:var(--chalk)">${g.pick}</strong> (${pct(Math.max(hp,1-hp))})`;
+  }
+  const favd = [g.home, g.away].some(t => Fav.has(t));
+  return `<article class="sgame ${favd?"fav-game":""}"><div class="top"><span>${done ? "Final" : time12(g.gametime)}</span><span>${esc(g.stadium||"")}</span></div>
+    ${side(g.away,false)}${side(g.home,true)}<div class="bot">${bot}</div></article>`;
+}
+async function load(){
+  const d = await getJSON(`/api/schedule${week?`?week=${week}`:""}`);
+  weeks = d.weeks; week = d.week;
+  $("#week").innerHTML = weeks.map(w=>`<option value="${w.week}" ${w.week===week?"selected":""}>${w.label}</option>`).join("");
+  $("#prev").disabled = week === weeks[0].week; $("#next").disabled = week === weeks.at(-1).week;
+  history.replaceState(null, "", `?week=${week}`);
+  const done = d.games.filter(g=>g.completed && g.correct!==null), right = done.filter(g=>g.correct).length;
+  $("#sub").textContent = `${d.season} week ${week}: every game, with the model's pick before kickoff and the result after.`;
+  $("#tiles").innerHTML = `<div class="tile"><b>${d.games.length}</b><span>Games</span></div>
+    <div class="tile"><b>${done.length ? `${right}-${done.length-right}` : "n/a"}</b><span>Model record this week</span></div>
+    <div class="tile"><b>${d.games.length - d.games.filter(g=>g.completed).length}</b><span>Still to play</span></div>`;
+  const byDay = {};
+  d.games.forEach(g => (byDay[g.gameday] ??= []).push(g));
+  $("#days").innerHTML = Object.entries(byDay).map(([day, gs]) =>
+    `<div class="day"><h3>${dayLabel(day)}</h3><div class="sgrid">${gs.map(gameHTML).join("")}</div></div>`).join("");
+}
+document.addEventListener("favchange", () => load());
+$("#week").onchange = e => { week = +e.target.value; load(); };
+$("#prev").onclick = () => { week--; load(); };
+$("#next").onclick = () => { week++; load(); };
+load();
+</script>
+</body></html>

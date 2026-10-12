@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>News - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>News</h1><p>Your saved stories, followed by the latest NFL headlines from ESPN. Filter by team to see what might move a prediction.</p></div>
+    <select id="team" aria-label="Filter by team"><option value="">All teams</option></select></header>
+
+  <section id="add-wrap" hidden>
+    <div class="sec-head"><div><h2>Add a story</h2>
+      <p>Saved to <code>data/news.json</code>. This form only appears on your own computer; commit and push that file to show the stories on your live site.</p></div></div>
+    <form class="add panel" id="add">
+      <label class="full">Headline<input name="title" required maxlength="200" placeholder="Ravens expect Lamar Jackson back for Week 6"></label>
+      <label class="full">Link<input name="url" type="url" required placeholder="https://"></label>
+      <label class="full">Your notes (optional)<textarea name="summary" maxlength="600" placeholder="Why this matters for the model"></textarea></label>
+      <label>Source (optional)<input name="source" maxlength="60" placeholder="ESPN, The Athletic"></label>
+      <label>Teams (optional)<input name="teams" maxlength="60" placeholder="BAL, CLE"></label>
+      <button class="primary" type="submit">Save story</button><span class="form-msg" id="msg" role="status"></span>
+    </form>
+  </section>
+
+  <section>
+    <div class="sec-head"><div><h2>Your stories</h2></div></div>
+    <div class="news-grid" id="mine"></div>
+  </section>
+  <section>
+    <div class="sec-head"><div><h2>Latest headlines</h2><p>From ESPN, refreshed every 15 minutes.</p></div></div>
+    <div class="news-grid" id="espn"></div>
+  </section>
+  <footer>Headlines link to their original sources.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("News");
+const params = new URLSearchParams(location.search);
+let team = (params.get("team") || "").toUpperCase(), canEdit = false;
+getJSON("/api/teams").then(d=>{ $("#team").innerHTML += d.teams.map(t=>t.team).sort().map(t=>`<option ${t===team?"selected":""}>${t}</option>`).join(""); });
+$("#team").onchange = e => { team = e.target.value; history.replaceState(null,"",team?`?team=${team}`:location.pathname); load(); };
+
+const when = d => { if (!d) return ""; const t = new Date(d), h = (Date.now()-t)/36e5;
+  return h < 1 ? `${Math.max(1,Math.round(h*60))} min ago` : h < 24 ? `${Math.round(h)} h ago` : t.toLocaleDateString([], {month:"short", day:"numeric"}); };
+const safeUrl = u => /^https?:\/\//.test(u||"") ? u : "#";
+function storyHTML(s, mine){
+  return `<article class="story ${mine?"mine":""}">${s.image?`<img src="${safeUrl(s.image)}" alt="" loading="lazy">`:""}
+    <div class="in"><h3><a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></h3>
+    ${s.summary?`<p class="muted">${esc(s.summary)}</p>`:""}
+    <div class="meta">${esc(s.source || "Saved link")}${s.date?`, ${when(s.date)}`:""}
+      ${(s.teams||[]).map(t=>teamLink(t)).join(" ")}
+      ${mine && canEdit ? `<button class="del" data-id="${s.id}" aria-label="Delete ${esc(s.title)}">Delete</button>`:""}</div></div></article>`;
+}
+async function load(){
+  const d = await getJSON(`/api/news${team?`?team=${team}`:""}`);
+  canEdit = d.can_edit; $("#add-wrap").hidden = !canEdit;
+  $("#mine").innerHTML = d.mine.length ? d.mine.map(s=>storyHTML(s,true)).join("") :
+    `<div class="empty">${team ? `No saved stories about ${team} yet.` : canEdit ? "No saved stories yet. Add one with the form above." : "No saved stories yet."}</div>`;
+  $("#espn").innerHTML = d.error && !d.headlines.length ? `<div class="empty">${d.error}</div>` :
+    d.headlines.length ? d.headlines.map(s=>storyHTML(s,false)).join("") : `<div class="empty">No recent ESPN headlines${team?` about ${team}`:""}.</div>`;
+  document.querySelectorAll(".del").forEach(b=>b.onclick=async()=>{
+    if (!confirm("Delete this story?")) return;
+    await fetch(`/api/news/${b.dataset.id}`, {method:"DELETE"}); load(); });
+}
+$("#add").onsubmit = async e => {
+  e.preventDefault();
+  const f = new FormData(e.target), body = Object.fromEntries(f);
+  body.teams = body.teams.split(",").map(t=>t.trim()).filter(Boolean);
+  const r = await fetch("/api/news", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  if (r.ok){ e.target.reset(); $("#msg").textContent = "Story saved."; load(); }
+  else { const err = await r.json().catch(()=>({})); $("#msg").textContent = typeof err.detail==="string" ? err.detail : "Check the headline and link, then try again."; }
+};
+load();
+</script>
+</body></html>

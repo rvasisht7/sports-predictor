@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playoffs - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>Playoff picture</h1><p id="sub">The model's predicted bracket, updated after every week. Go back in time to see how it changed.</p></div>
+    <select id="when" aria-label="Which week"></select></header>
+  <div class="sbcard" id="sb"></div>
+  <section id="AFC"></section>
+  <section id="NFC"></section>
+  <section>
+    <div class="sec-head"><div><h2>Every team's chances</h2><p>From 10,000 simulated seasons. "Reach SB" means reaching the Super Bowl.</p></div>
+      <div class="seg" role="group" aria-label="Conference" id="conf"><button data-c="All" aria-pressed="true">All</button><button data-c="AFC" aria-pressed="false">AFC</button><button data-c="NFC" aria-pressed="false">NFC</button></div></div>
+    <div class="table-wrap"><table id="odds"><thead><tr><th>Team</th><th>Proj. record</th><th>Playoffs</th><th>Div title</th><th>Bye</th><th>Reach SB</th><th>Win SB</th></tr></thead><tbody></tbody></table></div>
+  </section>
+  <p class="muted" style="font-size:.9rem;margin-bottom:28px">Before the playoffs are set, the bracket shows the single most likely field: the favorite in each division, then the likeliest wild cards, with the favorite advancing in every game. Once the real playoffs start, it switches to the actual matchups and results. Playoff games use Elo ratings; tiebreakers are simplified.</p>
+  <footer>For fun and learning.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Playoffs");
+let D, conf = "All";
+const team = (g, side) => {
+  const t = g[side], seed = g[side+"_seed"], won = g.winner === t, p = side==="home" ? g.home_prob : 1-g.home_prob;
+  const v = g.final ? g[side+"_score"] : pct(p);
+  return `<div class="bteam ${won?"win":"lose"}"><span class="sd">${seed}</span><span class="nm">${starBtn(t)}${teamLink(t)}</span><span class="v">${v}</span></div>`;
+};
+const gameHTML = g => `<div class="bgame ${g.final?"final":""}">${team(g,"away")}${team(g,"home")}</div>`;
+function confHTML(c, b){
+  const r = b.rounds;
+  return `<div class="sec-head"><div><h2>${c}</h2><p>1 seed: ${teamLink(b.seeds[0].team)} (bye)</p></div></div><div class="bracket">
+    <div class="col"><h4>Wild Card</h4>${r.WC.map(gameHTML).join("")}</div>
+    <div class="col"><h4>Divisional</h4>${r.DIV.map(gameHTML).join("")}</div>
+    <div class="col"><h4>Conference Championship</h4>${r.CON.map(gameHTML).join("")}</div></div>`;
+}
+function drawOdds(){
+  const rows = D.odds.filter(o=>conf==="All"||o.conference===conf);
+  $("#odds tbody").innerHTML = rows.map(o=>`<tr class="${Fav.has(o.team)?"fav":""}"><td class="team-cell">${starBtn(o.team)}${teamLink(o.team)}</td>
+    <td>${o.proj_wins.toFixed(1)}-${o.proj_losses.toFixed(1)}</td><td>${pct(o.playoffs)}</td><td>${pct(o.division)}</td><td>${pct(o.bye)}</td>
+    <td>${pct(o.super_bowl)}</td><td><strong>${o.champion<0.005&&o.champion>0?"<1%":pct(o.champion)}</strong></td></tr>`).join("");
+}
+async function load(week){
+  D = await getJSON(`/api/playoffs${week!=null&&week!==""?`?week=${week}`:""}`);
+  $("#when").innerHTML = D.options.map(o=>`<option value="${o.week??""}" ${(o.week??null)===(D.week??null)?"selected":""}>${o.label}</option>`).join("");
+  $("#sub").textContent = D.mode==="actual" ? `The ${D.season} playoffs: real matchups and results, with the model's chances for games still to play.`
+    : `The model's predicted ${D.season} bracket, ${D.label.toLowerCase()}. Go back in time to see how it changed.`;
+  const sb = D.bracket.super_bowl, champ = D.bracket.champion;
+  const chance = D.odds.find(o=>o.team===champ);
+  $("#sb").innerHTML = `<div><span class="muted" style="color:#55665b">${sb.final?"Super Bowl champion":"Predicted champion"}</span><h2>${starBtn(champ)}${esc(champ)}</h2>
+    <p style="color:#55665b">${sb.final?"":`Even the favorite wins it all only ${pct(chance?chance.champion:0)} of the time in the simulations.`}</p></div>
+    <div><h4 style="margin:0 0 6px;color:#55665b">Super Bowl</h4>${gameHTML(sb)}</div>`;
+  for (const c of ["AFC","NFC"]) $("#"+c).innerHTML = confHTML(c, D.bracket.conferences[c]);
+  drawOdds();
+}
+$("#when").onchange = e => load(e.target.value);
+document.querySelectorAll("#conf button").forEach(b=>b.onclick=()=>{ conf=b.dataset.c; document.querySelectorAll("#conf button").forEach(x=>x.setAttribute("aria-pressed",x===b)); drawOdds(); });
+document.addEventListener("favchange", ()=> D && drawOdds());
+load();
+</script>
+</body></html>

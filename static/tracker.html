@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracker - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>Tracker</h1><p>Every pick the model made, graded. Each season is predicted by a model trained only on earlier seasons, so these are honest out-of-sample results.</p></div>
+    <select id="season" aria-label="Season"></select></header>
+  <div class="tiles" id="tiles"></div>
+  <section>
+    <div class="charts">
+      <div class="panel"><h3>Accuracy by week</h3><p>Share of winners picked correctly each week.</p>
+        <div class="canvas-box"><canvas id="weekly"></canvas></div></div>
+      <div class="panel"><h3>Is the model honest about its confidence?</h3><p>When it gave the favorite a certain chance, how often the favorite actually won. Bars near the line mean well calibrated.</p>
+        <div class="canvas-box"><canvas id="calib"></canvas></div></div>
+    </div>
+  </section>
+  <section>
+    <div class="sec-head"><div><h2>Every pick</h2><p>Newest first. Elo and Vegas columns show whether they picked the same winner correctly.</p></div>
+      <select id="filter" aria-label="Filter picks"><option value="all">All picks</option><option value="wrong">Model wrong</option><option value="disagree">Model and Vegas disagreed</option></select></div>
+    <div class="table-wrap"><table id="picks"><thead><tr><th>Week</th><th>Game</th><th>Model pick</th><th>Result</th><th>Model</th><th>Elo only</th><th>Vegas</th></tr></thead><tbody></tbody></table></div>
+  </section>
+  <footer>Ties are left out.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Tracker");
+let data, charts = [];
+const mark = v => v==null ? `<span class="muted">n/a</span>` : `<span class="${v?'ok':'no'}">${v?"Right":"Wrong"}</span>`;
+function renderPicks(){
+  const f = $("#filter").value;
+  const rows = data.picks.filter(p => f==="all" || (f==="wrong" && !p.correct) || (f==="disagree" && p.vegas_correct!=null && p.vegas_correct!==p.correct));
+  $("#picks tbody").innerHTML = rows.map(p=>{
+    const conf = Math.max(p.model_home_prob, 1-p.model_home_prob);
+    return `<tr><td>${p.week}</td><td>${teamLink(p.away)} ${p.away_score}, ${teamLink(p.home)} ${p.home_score}</td>
+      <td><strong>${p.pick}</strong> <span class="muted">${pct(conf)}</span></td><td>${p.home_score>p.away_score?p.home:p.away} won</td>
+      <td>${mark(p.correct)}</td><td>${mark(p.elo_correct)}</td><td>${mark(p.vegas_correct)}</td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="muted">No picks match this filter.</td></tr>`;
+}
+async function load(season){
+  data = await getJSON(`/api/tracker${season?`?season=${season}`:""}`);
+  $("#season").innerHTML = data.seasons.slice().reverse().map(s=>`<option ${s===data.season?"selected":""}>${s}</option>`).join("");
+  const t = data.totals, right = Math.round(t.model.accuracy * t.model.games);
+  const tile = (v,l) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`;
+  $("#tiles").innerHTML = tile(`${right}-${t.model.games-right}`, `Model record, ${pct(t.model.accuracy)}`)
+    + tile(pct(t.elo.accuracy), "Elo only") + tile(pct(t.vegas.accuracy), "Vegas favorite")
+    + tile(t.model.brier.toFixed(3), `Model Brier (Vegas ${t.vegas.brier.toFixed(3)})`);
+  charts.forEach(c=>c.destroy());
+  charts = [
+    new Chart($("#weekly"), {type:"line", data:{labels:data.weeks.map(w=>"W"+w.week), datasets:[
+      {label:"Model",data:data.weeks.map(w=>w.model),borderColor:css("--pylon"),backgroundColor:css("--pylon"),tension:.2},
+      {label:"Elo only",data:data.weeks.map(w=>w.elo),borderColor:"rgba(238,240,230,.45)",backgroundColor:"rgba(238,240,230,.45)",tension:.2},
+      {label:"Vegas",data:data.weeks.map(w=>w.vegas),borderColor:css("--sky"),backgroundColor:css("--sky"),tension:.2}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${pct(c.raw)}`}}},
+        scales:{y:{min:0,max:1,ticks:{callback:v=>pct(v)}}}}}),
+    new Chart($("#calib"), {type:"bar", data:{labels:data.calibration.map(b=>b.range), datasets:[
+      {type:"line",label:"Predicted",data:data.calibration.map(b=>b.predicted),borderColor:css("--chalk"),borderDash:[4,4],pointRadius:3},
+      {label:"Actually won",data:data.calibration.map(b=>b.actual),backgroundColor:css("--pylon"),borderRadius:3}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${pct(c.raw)}`,afterLabel:c=>`${data.calibration[c.dataIndex].games} games`}}},
+        scales:{y:{min:.4,max:1,ticks:{callback:v=>pct(v)}},x:{title:{display:true,text:"Model's chance for the favorite"}}}}}),
+  ];
+  renderPicks();
+}
+$("#season").onchange = e => load(e.target.value);
+$("#filter").onchange = renderPicks;
+load();
+</script>
+</body></html>

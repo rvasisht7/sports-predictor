@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>Fantasy</h1><p id="sub">Projected points and start/sit calls for every QB, RB, WR and TE.</p></div>
+    <div class="seg" role="group" aria-label="Scoring format" id="scoring">
+      <button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="standard" aria-pressed="false">Standard</button></div></header>
+
+  <section>
+    <div class="sec-head"><div><h2>Who should I start?</h2><p>Pick two players to compare their projections and matchups side by side.</p></div></div>
+    <div class="controls" style="margin-bottom:14px">
+      <input id="pa" list="names" placeholder="First player" aria-label="First player">
+      <input id="pb" list="names" placeholder="Second player" aria-label="Second player">
+      <datalist id="names"></datalist>
+    </div>
+    <div id="compare"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div><h2>Matchups to target</h2><p>Defenses facing each position this week, by fantasy points allowed to that position per game compared with the league average. Early in the season these swing a lot, so the projections only lean on them partly.</p></div>
+      <div class="seg" role="group" aria-label="Position" id="mpos"></div></div>
+    <div class="mgrid" id="matchups"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div><h2 id="rank-title">Rankings</h2><p>Open a player to see why. Start means a weekly starter in a typical 12-team league; Flex means a borderline starter.</p></div>
+      <div class="controls"><div class="seg" role="group" aria-label="Position filter" id="pos"></div><input id="search" placeholder="Search players" aria-label="Search players"></div></div>
+    <div class="picks" id="list"></div>
+    <div style="text-align:center;margin-top:14px"><button id="more">Show more</button></div>
+  </section>
+
+  <section><div class="note" id="acc"></div></section>
+  <footer>For fun and learning. Projections are estimates and miss by several points in a typical week.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Fantasy");
+let D = null, scoring = "ppr", pos = "All", mpos = "WR", shown = 40;
+const POS = ["All","QB","RB","WR","TE"];
+const segHTML = (opts, cur, attr) => opts.map(o=>`<button data-${attr}="${o}" aria-pressed="${o===cur}">${o}</button>`).join("");
+const raw = p => p.opp_allowed && p.league_allowed ? p.opp_allowed / p.league_allowed : null;
+const muTag = m => { if (m == null) return ""; const d = Math.round((m-1)*100); return d===0 ? `<span class="muted">even</span>` : `<span class="${d>0?"mu-pos":"mu-neg"}">${d>0?"+":""}${d}%</span>`; };
+const where = p => `${p.home?"vs.":"at"} ${teamLink(p.opp)}`;
+const injTag = p => p.injury ? ` <span class="tag ${p.injury.status}">${p.injury.status}</span>` : "";
+
+function renderMatchups(){
+  $("#mpos").innerHTML = segHTML(["QB","RB","WR","TE"], mpos, "m");
+  document.querySelectorAll("#mpos button").forEach(b=>b.onclick=()=>{ mpos=b.dataset.m; renderMatchups(); });
+  const m = D.matchups[mpos], row = x => `<div class="mrow"><span>${teamLink(x.offense)} ${mpos}s vs. ${teamLink(x.defense)}</span>
+    <span>${x.allowed.toFixed(1)} allowed per game ${muTag(x.allowed / x.league)}</span></div>`;
+  $("#matchups").innerHTML = `<div class="panel"><h3 style="margin-bottom:8px">Best matchups</h3>${m.best.map(row).join("")}</div>
+    <div class="panel"><h3 style="margin-bottom:8px">Toughest matchups</h3>${m.worst.map(row).join("")}</div>`;
+}
+
+function renderList(){
+  const s = $("#search").value.trim().toLowerCase();
+  const list = D.players.filter(p=>(pos==="All"||p.pos===pos) && (!s || p.name.toLowerCase().includes(s) || p.team.toLowerCase()===s));
+  $("#rank-title").textContent = `Week ${D.week} rankings${pos==="All"?"":`: ${pos}`}`;
+  $("#list").innerHTML = list.slice(0, shown).map((p,i)=>`<details class="pick frow"><summary>
+      <span class="muted">${pos==="All"?i+1:p.pos_rank}</span>${photoHTML(p.photo,p.name)}
+      <span><button class="plink" data-pid="${p.id}">${esc(p.name)}</button>${injTag(p)}<span class="lbl">${p.pos}${p.pos_rank} ${teamLink(p.team)} ${where(p)}${p.week!==D.week?` (week ${p.week})`:""}</span></span>
+      <span><span class="lbl">Projected</span><span class="proj">${p.proj.toFixed(1)}</span></span>
+      <span class="hide-sm"><span class="lbl">Season avg</span>${p.season_avg.toFixed(1)}</span>
+      <span class="hide-sm"><span class="lbl">Opp. allows</span>${muTag(raw(p))}</span>
+      <span><span class="verdict ${p.verdict}">${p.verdict}</span></span></summary>
+    <div class="body"><ul>${p.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div></details>`).join("")
+    || `<div class="empty">No players match.</div>`;
+  $("#more").hidden = list.length <= shown;
+}
+
+function card(p, win){
+  return `<div class="vcard ${win?"win":""}"><div style="display:flex;gap:12px;align-items:center">${photoHTML(p.photo,p.name)}
+    <div><h3><button class="plink" data-pid="${p.id}">${esc(p.name)}</button>${injTag(p)}</h3><span class="muted">${p.pos}${p.pos_rank}, ${p.team} ${p.home?"vs.":"at"} ${p.opp}</span></div>
+    <span class="verdict ${p.verdict}" style="margin-left:auto">${p.verdict}</span></div>
+    <div class="big">${p.proj.toFixed(1)} <span class="muted" style="font-size:1rem;font-family:var(--body)">projected</span></div>
+    <ul>${p.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>`;
+}
+function renderCompare(){
+  const find = v => D.players.find(p=>p.name.toLowerCase()===v.trim().toLowerCase());
+  const a = find($("#pa").value), b = find($("#pb").value);
+  if (!a || !b){ $("#compare").innerHTML = `<p class="muted">${a||b ? "Pick a second player." : "Start typing a name and choose from the list."}</p>`; return; }
+  const [hi, lo] = a.proj >= b.proj ? [a, b] : [b, a], gap = hi.proj - lo.proj;
+  const call = gap < 1 ? `Too close to call. Go with your gut, or the one with the safer role.` :
+    `Start ${hi.name}. Projected ${gap.toFixed(1)} more points${gap < 3 ? ", a small edge" : ""}.`;
+  $("#compare").innerHTML = `<div class="vs">${card(a, a===hi && gap>=1)}<span class="vsmid">vs.</span>${card(b, b===hi && gap>=1)}</div><p class="call">${esc(call)}</p>`;
+}
+$("#pa").oninput = $("#pb").oninput = renderCompare;
+
+$("#pos").innerHTML = segHTML(POS, pos, "p");
+document.querySelectorAll("#pos button").forEach(b=>b.onclick=()=>{
+  pos=b.dataset.p; shown=40; document.querySelectorAll("#pos button").forEach(x=>x.setAttribute("aria-pressed", x===b)); renderList(); });
+$("#search").oninput = () => { shown = 40; renderList(); };
+$("#more").onclick = () => { shown += 40; renderList(); };
+document.querySelectorAll("#scoring button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#scoring button").forEach(x=>x.setAttribute("aria-pressed", x===b)); scoring=b.dataset.s; load(); });
+
+async function load(){
+  D = await getJSON(`/api/fantasy?scoring=${scoring}`);
+  if (!D.week){ $("#list").innerHTML = `<div class="empty">No upcoming games to project.</div>`; return; }
+  $("#sub").textContent = `Week ${D.week} projections for every QB, RB, WR and TE.${D.byes.length?` On bye: ${D.byes.join(", ")}.`:""}`;
+  $("#names").innerHTML = D.players.map(p=>`<option value="${esc(p.name)}">${p.pos}, ${p.team}</option>`).join("");
+  $("#acc").innerHTML = `<h3 style="color:var(--chalk);margin-bottom:6px">How good are these projections?</h3>
+    <p>Each projection starts from the player's recent production (recent games count more, blended with last season early on), then adjusts for how many points the opponent allows to that position and how many points Vegas expects the team to score. Players listed Out or Doubtful are projected at zero.</p>
+    <p style="margin-top:8px">Tested on every week of ${D.accuracy.seasons}, projections missed by ${D.accuracy.model} points per player on average, against ${D.accuracy.naive} for just using the season average. That's a real but modest edge: fantasy scoring is very random from week to week, so treat close calls as close.</p>`;
+  renderMatchups(); renderList(); renderCompare();
+}
+load();
+</script>
+</body></html>

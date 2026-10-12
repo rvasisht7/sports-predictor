@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1 id="name">Loading</h1><p id="sub"></p></div>
+    <select id="switch" aria-label="Switch team"><option value="">Switch team</option></select></header>
+  <div class="tiles" id="tiles"></div>
+  <section id="next-wrap"></section>
+  <section>
+    <div class="sec-head"><div><h2>Season outlook</h2><p>From 10,000 simulated seasons. <a href="/playoffs.html">See the full bracket</a>.</p></div></div>
+    <div class="tiles" id="outlook"></div>
+  </section>
+  <section>
+    <div class="sec-head"><div><h2>Tendencies</h2><p>How this team plays, ranked against the league this season. Green and red ranks are strengths and weaknesses; gray ones describe style.</p></div></div>
+    <div id="style-notes" class="keys" style="margin-bottom:16px"></div>
+    <div class="tgrid"><div class="panel"><h3 style="margin-bottom:8px">Offense</h3><div id="t-off"></div></div>
+      <div class="panel"><h3 style="margin-bottom:8px">Defense</h3><div id="t-def"></div></div></div>
+  </section>
+  <section>
+    <div class="sec-head"><div><h2>Team leaders</h2></div><a id="leaders-more" class="muted" href="/leaders.html">Full leaderboard</a></div>
+    <div class="lgrid" id="tleaders"></div>
+  </section>
+  <section>
+    <div class="sec-head"><div><h2>Roster stats</h2><p>Everyone who has recorded a stat this season. Select a player to open his card.</p></div>
+      <div class="seg" role="group" aria-label="Position group" id="rgroups"></div></div>
+    <div class="table-wrap"><table id="roster"><thead></thead><tbody></tbody></table></div>
+  </section>
+  <section id="news-wrap" hidden>
+    <div class="sec-head"><div><h2>Latest news</h2></div><a id="news-more" class="muted" href="/news.html">All news</a></div>
+    <div class="news-grid" id="news"></div>
+  </section>
+  <section>
+    <div class="charts">
+      <div class="panel"><h3>Rating over time</h3><p>Elo rating after each game, this season and last.</p>
+        <div class="canvas-box"><canvas id="elo"></canvas></div></div>
+      <div class="panel"><h3>Efficiency by game</h3><p>EPA per play. Higher is better for the offense; lower is better for the defense.</p>
+        <div class="canvas-box"><canvas id="epa"></canvas></div></div>
+    </div>
+  </section>
+  <section>
+    <div class="sec-head"><div><h2>Schedule</h2><p>The model's chance for this team in every game. Finished games are graded.</p></div></div>
+    <div class="table-wrap"><table id="sched"><thead><tr><th>Week</th><th>Opponent</th><th>Starting QBs</th><th>Win chance</th><th>Result</th></tr></thead><tbody></tbody></table></div>
+  </section>
+  <section>
+    <div class="sec-head"><div><h2 id="inj-title">Injury report</h2><p>Snap share is how much the player usually plays. Out and Doubtful players count against the team in the model; quarterbacks are handled by the QB factor instead.</p></div></div>
+    <div class="panel" id="inj"></div>
+  </section>
+  <footer>Data from nflverse.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Teams");
+const T = (new URLSearchParams(location.search).get("t") || "KC").toUpperCase();
+getJSON("/api/teams").then(d=>{ $("#switch").innerHTML += d.teams.map(t=>t.team).sort().map(t=>`<option ${t===T?"selected":""}>${t}</option>`).join("");});
+$("#news-more").href = `/news.html?team=${T}`;
+$("#leaders-more").href = `/leaders.html?team=${T}`;
+const GROUP_NAMES = {QB:"Quarterbacks", RB:"Running backs", WR:"Receivers", TE:"Tight ends", K:"Kickers", DEF:"Defense"};
+getJSON(`/api/roster/${T}`).then(R=>{
+  const groups = Object.keys(R); let cur = groups[0];
+  const draw = () => {
+    $("#rgroups").innerHTML = groups.map(g=>`<button data-g="${g}" aria-pressed="${g===cur}">${GROUP_NAMES[g]}</button>`).join("");
+    document.querySelectorAll("#rgroups button").forEach(b=>b.onclick=()=>{ cur=b.dataset.g; draw(); });
+    const r = R[cur];
+    $("#roster thead").innerHTML = `<tr><th>Player</th><th>Pos</th><th>G</th>${r.columns.map(c=>`<th>${c}</th>`).join("")}</tr>`;
+    $("#roster tbody").innerHTML = r.players.map(p=>`<tr class="click" data-pid="${p.id}"><td><span style="display:inline-flex;gap:10px;align-items:center">${photoHTML(p.photo,p.name)}
+      <button class="plink" data-pid="${p.id}">${esc(p.name)}</button></span></td><td>${p.pos}</td><td>${p.games}</td>
+      ${p.stats.map(v=>`<td>${v ?? 0}</td>`).join("")}</tr>`).join("");
+  };
+  if (groups.length) draw();
+}).catch(()=>{});
+const KEY_STATS = ["Passing yards","Passing TDs","Rushing yards","Rushing TDs","Receiving yards","Receptions","Receiving TDs","Sacks","Tackles","Interceptions","Total points"];
+getJSON(`/api/leaders?team=${T}&n=3`).then(d=>{
+  const cats = d.groups.flatMap(g=>g.categories).filter(c=>KEY_STATS.includes(c.stat));
+  $("#tleaders").innerHTML = cats.map(c=>leaderCard(c.stat==="Total points"?{...c,stat:"Fantasy points (PPR)"}:c, true)).join("");
+}).catch(()=>{});
+getJSON(`/api/news?team=${T}`).then(d=>{
+  const items = [...d.mine, ...d.headlines].slice(0, 4);
+  if (!items.length) return;
+  $("#news-wrap").hidden = false;
+  $("#news").innerHTML = items.map(s=>`<article class="story ${d.mine.includes(s)?"mine":""}"><div class="in">
+    <h3><a href="${/^https?:\/\//.test(s.url)?s.url:"#"}" target="_blank" rel="noopener">${esc(s.title)}</a></h3>
+    ${s.summary?`<p class="muted">${esc(s.summary)}</p>`:""}<div class="meta">${esc(s.source||"Saved link")}</div></div></article>`).join("");
+}).catch(()=>{});
+$("#switch").onchange = e => { if (e.target.value) location.href = `/team.html?t=${e.target.value}`; };
+const ord = n => { if (n==null) return "n/a"; const s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
+const sign = v => v==null ? "n/a" : (v>=0?"+":"") + v.toFixed(2);
+
+getJSON(`/api/team/${T}`).then(d=>{
+  document.title = `${d.name} - Sports Predictor`;
+  $("#name").innerHTML = `${starBtn(d.team)} ${esc(d.name)}`;
+  $("#sub").textContent = `${d.season} season. Most recent starting QB: ${d.qb || "unknown"}.`;
+  const s = d.stats || {}, tile = (v,l) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`;
+  $("#tiles").innerHTML = tile(d.record,"Record") + tile(d.elo, `Elo, ${ord(d.elo_rank)} in the NFL`)
+    + tile(ord(s.net_rank),"Overall efficiency") + tile(ord(s.off_rank), `Offense, ${sign(s.off_epa)} EPA per play`)
+    + tile(ord(s.def_rank), `Defense, ${sign(s.def_off_epa)} EPA allowed`);
+
+  if (d.next_game){
+    const g = d.next_game, mine = g.home===T ? g.model_home_prob : 1-g.model_home_prob, opp = g.home===T ? g.away : g.home;
+    $("#next-wrap").innerHTML = `<div class="sec-head"><div><h2>Next game: ${g.home===T?"vs.":"at"} ${teamLink(opp)}</h2>
+      <p>Week ${g.week}, ${g.gameday}. The model gives ${T} a ${pct(mine)} chance to win.</p></div></div>
+      <div class="panel"><div class="charts"><div><h3 style="margin-bottom:8px">What's driving it</h3>${factorsHTML(g)}</div>
+      <div><h3 style="margin-bottom:8px">Matchup keys</h3>${keysHTML(g.keys)}
+        <h3 style="margin:16px 0 8px">${opp} injuries</h3>${injuriesHTML(g.home===T?g.away_injuries:g.home_injuries)}</div></div></div>`;
+  }
+  if (d.outlook){
+    const o = d.outlook, tl = (v,l) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`;
+    $("#outlook").innerHTML = tl(`${o.proj_wins.toFixed(1)}-${o.proj_losses.toFixed(1)}`, "Projected record") + tl(pct(o.playoffs), "Make the playoffs")
+      + tl(pct(o.division), `Win the ${d.division}`) + tl(pct(o.super_bowl), "Reach the Super Bowl") + tl(pct(o.champion), "Win the Super Bowl");
+  }
+  if (d.tendencies && d.tendencies.off){
+    const badge = x => x.rank==null ? `<span class="rk-badge rk-mid">n/a</span>` : x.style ? `<span class="rk-badge rk-style">${ordinal(x.rank)}</span>`
+      : `<span class="rk-badge ${x.good_rank<=10?"rk-good":x.good_rank>=23?"rk-bad":"rk-mid"}">${ordinal(x.good_rank)}</span>`;
+    const rowsT = list => list.map(x=>`<div class="trow"><span>${x.label}</span><span class="tv">${x.value}</span>${badge(x)}</div>`).join("");
+    $("#t-off").innerHTML = rowsT(d.tendencies.off); $("#t-def").innerHTML = rowsT(d.tendencies.def);
+    $("#style-notes").innerHTML = d.tendencies.summary.map(s=>`<div class="key">${esc(s)}</div>`).join("");
+  }
+  $("#sched tbody").innerHTML = d.schedule.map(g=>{
+    let res = `<span class="muted">${g.gameday}</span>`;
+    if (g.result) res = `${g.result} ${g.correct==null?"":`<span class="${g.correct?'ok':'no'}">model ${g.correct?"right":"wrong"}</span>`}`;
+    const qbs = g.at_home ? `${g.home_qb||"?"} vs. ${g.away_qb||"?"}` : `${g.away_qb||"?"} vs. ${g.home_qb||"?"}`;
+    return `<tr><td>${g.week}</td><td>${g.at_home?"vs.":"at"} ${teamLink(g.opponent)}</td><td class="muted">${esc(qbs)}</td>
+      <td>${pct(g.team_prob)}<span class="prob"><i style="width:${g.team_prob*100}%"></i></span></td><td>${res}</td></tr>`;
+  }).join("");
+  $("#inj-title").textContent = `Week ${d.injury_week} injury report`;
+  $("#inj").innerHTML = injuriesHTML(d.injuries);
+  new Chart($("#elo"), {type:"line", data:{labels:d.elo_history.map(x=>x.label),
+    datasets:[{data:d.elo_history.map(x=>x.rating),borderColor:css("--pylon"),pointRadius:0,borderWidth:2,tension:.2}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksLimit:6}}}}});
+  new Chart($("#epa"), {type:"bar", data:{labels:d.weekly_epa.map(x=>"W"+x.week), datasets:[
+    {label:"Offense",data:d.weekly_epa.map(x=>x.off_epa),backgroundColor:css("--pylon"),borderRadius:3},
+    {label:"Defense allowed",data:d.weekly_epa.map(x=>x.def_epa),backgroundColor:css("--sky"),borderRadius:3}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}}}}});
+}).catch(()=>{ $("#name").textContent = "Team not found"; $("#sub").textContent = "Pick a team from the Teams page."; });
+</script>
+</body></html>

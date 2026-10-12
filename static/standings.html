@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Standings - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>Standings</h1><p id="sub">Every division, with each team's chance to make the playoffs and win its division from 10,000 simulated seasons.</p></div></header>
+  <section>
+    <div class="sec-head"><div><h2>If the season ended today</h2><p>Division winners are seeds 1 to 4, the next three best records are wild cards. The 1 seed gets a first-round bye. Tiebreakers here are simplified.</p></div></div>
+    <div class="charts" id="picture"></div>
+  </section>
+  <section id="AFC"></section>
+  <section id="NFC"></section>
+  <p class="muted" style="font-size:.9rem;margin-bottom:28px">The first Div and Conf columns are records against division and conference opponents; the last two columns are the chances to make the playoffs and win the division. Playoff and division chances come from simulating the rest of the season 10,000 times with the model's win probability for every game. Star a team to follow it.</p>
+  <footer>Regular season only.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Standings");
+const rec3 = a => `${a[0]}-${a[1]}${a[2]?`-${a[2]}`:""}`;
+function draw(d){
+  const fav = Fav.get();
+  for (const conf of ["AFC","NFC"]){
+    $("#"+conf).innerHTML = `<div class="sec-head"><h2>${conf}</h2></div><div class="divgrid">${d.divisions.filter(x=>x.conference===conf).map(dv=>`
+      <div class="table-wrap"><h3>${dv.division}</h3><table><thead><tr><th>Team</th><th>W-L</th><th>Div</th><th>Conf</th><th>Diff</th><th>Strk</th><th>Playoffs</th><th>Div</th></tr></thead>
+      <tbody>${dv.teams.map(t=>`<tr class="${fav.includes(t.team)?"fav":""}"><td class="team-cell">${starBtn(t.team)}${teamLink(t.team)}</td>
+        <td>${t.w}-${t.l}${t.t?`-${t.t}`:""}</td><td>${rec3(t.div)}</td><td>${rec3(t.conf)}</td>
+        <td class="${t.diff>0?"ok":t.diff<0?"no":""}">${t.diff>0?"+":""}${t.diff}</td><td>${t.streak||""}</td>
+        <td>${t.odds?pct(t.odds.playoffs):"n/a"}</td><td>${t.odds?pct(t.odds.division):"n/a"}</td></tr>`).join("")}</tbody></table></div>`).join("")}</div>`;
+  }
+  $("#picture").innerHTML = ["AFC","NFC"].map(c=>`<div class="panel"><h3 style="margin-bottom:8px">${c}</h3><div class="seedlist">${
+    d.picture[c].map((t,i)=>`<div><b>${i+1}</b>${starBtn(t)}${teamLink(t)} <span class="muted">${i===0?"bye":i<4?"division leader":"wild card"}</span></div>`).join("")}</div></div>`).join("");
+}
+let data; getJSON("/api/standings").then(d=>{ data=d; $("#sub").textContent = `${d.season} standings, with each team's chance to make the playoffs and win its division from 10,000 simulated seasons.`; draw(d); });
+document.addEventListener("favchange", ()=> data && draw(data));
+</script>
+</body></html>

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teams - Sports Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/common.js?v=8"></script>
+</head>
+<body>
+<main>
+  <div id="nav"></div>
+  <header><div><h1>Teams</h1><p id="sub">Every team ranked by the model. Select a column to sort, or a team to open its page.</p></div></header>
+  <div class="table-wrap"><table id="tbl"><thead><tr>
+    <th><span class="visually-hidden">Favorite</span></th><th><button class="sort" data-k="elo_rank">Rank</button></th><th><button class="sort" data-k="name">Team</button></th>
+    <th><button class="sort" data-k="record">Record</button></th><th><button class="sort" data-k="elo">Elo</button></th>
+    <th><button class="sort" data-k="net_rank">Efficiency rank</button></th><th><button class="sort" data-k="off_rank">Offense rank</button></th>
+    <th><button class="sort" data-k="def_rank">Defense rank</button></th></tr></thead><tbody></tbody></table></div>
+  <p class="muted" style="margin:14px 0 40px;font-size:.9rem">Efficiency ranks use EPA per play this season: offense is points added per play, defense is points allowed per play.</p>
+  <footer>Data from nflverse.</footer>
+</main>
+<script>
+$("#nav").innerHTML = navHTML("Teams");
+let rows = [], key = "elo_rank", asc = true;
+function render(){
+  const s = [...rows].sort((a,b)=>{const x=a[key],y=b[key]; const c = typeof x==="string" ? x.localeCompare(y) : (x??99)-(y??99); return asc?c:-c;});
+  $("#tbl tbody").innerHTML = s.map(t=>`<tr class="${Fav.has(t.team)?"fav":""}"><td>${starBtn(t.team)}</td><td>${t.elo_rank}</td><td><a href="/team.html?t=${t.team}">${t.name}</a> <span class="muted">${t.team}</span></td>
+    <td>${t.record}</td><td>${Math.round(t.elo)}</td><td>${t.net_rank??"n/a"}</td><td>${t.off_rank??"n/a"}</td><td>${t.def_rank??"n/a"}</td></tr>`).join("");
+}
+document.querySelectorAll("th .sort").forEach(b=>b.onclick=()=>{ asc = key===b.dataset.k ? !asc : b.dataset.k!=="elo"; key=b.dataset.k; render(); });
+document.addEventListener("favchange", ()=> rows.length && render());
+getJSON("/api/teams").then(d=>{ rows=d.teams; $("#sub").textContent=`Every team in ${d.season}, ranked by Elo. Select a column to sort, or a team to open its page.`; render(); });
+</script>
+</body></html>
