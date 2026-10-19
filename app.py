@@ -1,6 +1,9 @@
 """Web app. Run locally:   uvicorn app:app --reload
 Then open http://127.0.0.1:8000"""
 import asyncio
+import functools
+import json
+import mimetypes
 import math
 import random
 import time
@@ -13,6 +16,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from data import current_week
@@ -20,6 +24,7 @@ from elo import norm
 from live import fetch_scoreboard, live_win_prob, minutes_left
 from main import build, score
 from model import build_features, coefficients, explain, walk_forward
+import ask
 import news
 import players
 from teams import CONF_OF, DIVISION_OF, DIVISIONS, TEAM_NAME
@@ -29,6 +34,7 @@ from data import load_games as load_raw_games
 from elo import EloModel
 from stats import load_epa, load_injuries_current
 
+mimetypes.add_type("application/manifest+json", ".webmanifest")   # so phones accept the app manifest
 DATA_REFRESH_SECONDS = 6 * 60 * 60   # re-pull results, play-by-play and injuries every 6 hours
 LIVE_FAST, LIVE_SLOW = 30, 300       # poll ESPN every 30s during games, 5 min otherwise
 
@@ -52,6 +58,23 @@ def clean(o):
     if isinstance(o, np.bool_):
         return bool(o)
     return o
+
+
+_CACHE = {}
+
+
+def cached(fn):
+    """Remember each endpoint's answer until the data refreshes (every 6 hours), so
+    repeat visits are served instantly instead of recomputed."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        key = (fn.__name__, args, tuple(sorted(kwargs.items())), S["data_updated"])
+        if key not in _CACHE:
+            if len(_CACHE) > 2000:
+                _CACHE.clear()
+            _CACHE[key] = fn(*args, **kwargs)
+        return _CACHE[key]
+    return wrapper
 
 
 # ---------------- data loading ----------------
@@ -173,6 +196,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Sports Predictor", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1000)   # shrinks big responses ~5-8x for phones
 
 
 @app.middleware("http")
@@ -265,6 +289,7 @@ def api_live():
 
 
 @app.get("/api/predictions")
+@cached
 def api_predictions():
     g = S["games"]
     season, week = current_week(g)
@@ -273,11 +298,13 @@ def api_predictions():
 
 
 @app.get("/api/ratings")
+@cached
 def api_ratings():
     return [{"team": k, "rating": float(v)} for k, v in S["elo"].table().items()]
 
 
 @app.get("/api/elo-history")
+@cached
 def api_elo_history(teams: str = "KC,BUF,PHI,DET", seasons: int = 2):
     h = pd.DataFrame(S["elo"].history, columns=["season", "week", "team", "rating"])
     h = h[h.season > h.season.max() - seasons]
@@ -289,6 +316,7 @@ def api_elo_history(teams: str = "KC,BUF,PHI,DET", seasons: int = 2):
 
 
 @app.get("/api/backtest")
+@cached
 def api_backtest():
     g = S["games"]
     rows = []
@@ -301,6 +329,7 @@ def api_backtest():
 
 
 @app.get("/api/teams")
+@cached
 def api_teams():
     season = int(S["games"].season.max())
     rec, epa = records(season), team_epa_table(season)
@@ -318,6 +347,7 @@ def api_teams():
 
 
 @app.get("/api/team/{abbr}")
+@cached
 def api_team(abbr: str):
     t = norm(abbr.upper())
     if t not in S["elo"].ratings:
@@ -364,6 +394,7 @@ def api_team(abbr: str):
 
 
 @app.get("/api/tracker")
+@cached
 def api_tracker(season: int | None = None):
     g = S["games"]
     season = season or int(g.season.max())
@@ -397,6 +428,7 @@ def api_tracker(season: int | None = None):
 
 
 @app.get("/api/stats")
+@cached
 def api_stats():
     g = S["games"]
     season = int(g.season.max())
@@ -442,6 +474,7 @@ def api_stats():
 # ---------------- leaders + fantasy ----------------
 
 @app.get("/api/leaders")
+@cached
 def api_leaders(team: str | None = None, n: int = 5):
     g = S["games"]
     season = int(g.season.max())
@@ -453,6 +486,7 @@ def api_leaders(team: str | None = None, n: int = 5):
 
 
 @app.get("/api/fantasy")
+@cached
 def api_fantasy(scoring: str = "ppr"):
     f = S["fantasy"].get(scoring if scoring in SCORING else "ppr")
     if not f:
@@ -481,6 +515,7 @@ def _picture(rec):
 
 
 @app.get("/api/standings")
+@cached
 def api_standings():
     g = S["games"]
     season = int(g.season.max())
@@ -580,6 +615,7 @@ def api_favorites(teams: str = ""):
 
 
 @app.get("/api/player/{pid}")
+@cached
 def api_player(pid: str):
     season = int(S["games"].season.max())
     card = players.player_card(S["player_weeks"], S["totals"], pid, season, S["games"])
@@ -604,11 +640,13 @@ def api_player(pid: str):
 
 
 @app.get("/api/roster/{abbr}")
+@cached
 def api_roster(abbr: str):
     return clean(players.roster(S["totals"], norm(abbr.upper())))
 
 
 @app.get("/api/schedule")
+@cached
 def api_schedule(week: int | None = None, season: int | None = None):
     g = S["games"]
     season = season or int(g.season.max())
@@ -629,6 +667,258 @@ def api_schedule(week: int | None = None, season: int | None = None):
     return clean({"season": season, "week": week, "weeks": weeks, "games": rows})
 
 
+@app.get("/api/matchup-prob")
+@cached
+def api_matchup_prob(home: str, away: str):
+    """The model's chance for the home team: the real prediction if these teams
+    play each other this season, otherwise an Elo estimate."""
+    h, a = norm(home.upper()), norm(away.upper())
+    if h not in TEAM_NAME or a not in TEAM_NAME or h == a:
+        raise HTTPException(400, "Pick two different teams")
+    g = S["games"]
+    m = g[(g.season == g.season.max()) & ~g.completed & (g.home_team.map(norm) == h) & (g.away_team.map(norm) == a)]
+    if len(m):
+        return {"home": h, "away": a, "home_prob": round(float(m.iloc[0].model_home_prob), 3), "source": "model"}
+    return {"home": h, "away": a, "home_prob": round(float(S["elo"].win_prob(h, a)), 3), "source": "elo"}
+
+
+# ---------------- coaches ----------------
+COACHES = json.loads((Path(__file__).parent / "data" / "coaches.json").read_text())
+OFF_NUMBERS = ["proe", "early_pass", "deep_rate", "outside_run", "no_huddle", "pass_epa", "rush_epa", "explosive", "third", "rz_td"]
+DEF_NUMBERS = ["d_pass_epa", "d_rush_epa", "d_explosive", "d_sack", "d_takeaways", "d_third", "d_rz_td"]
+
+
+def head_coach(team: str):
+    staff = COACHES["teams"].get(team, {})
+    if staff.get("hc"):          # curated and sourced; the schedule data's coach field can be stale
+        return staff["hc"]
+    g = S["games"]
+    d = g[(g.season == g.season.max()) & g.completed & ((g.home_team.map(norm) == team) | (g.away_team.map(norm) == team))]
+    if d.empty:
+        d = g[(g.season == g.season.max()) & ((g.home_team.map(norm) == team) | (g.away_team.map(norm) == team))]
+    if d.empty:
+        return None
+    r = d.sort_values("gameday").iloc[-1]
+    return r.home_coach if norm(r.home_team) == team else r.away_coach
+
+
+@app.get("/api/coaches/{abbr}")
+@cached
+def api_coaches(abbr: str):
+    t = norm(abbr.upper())
+    staff = COACHES["teams"].get(t)
+    if not staff:
+        raise HTTPException(404, "No staff on file for that team")
+    hc = head_coach(t)
+    prof = tendencies.team_profile(S["tend"], t) or {}
+    by_key = {x["key"]: x for x in prof.get("off", []) + prof.get("def", [])}
+    pick = lambda keys: [by_key[k] for k in keys if k in by_key]
+    hc_calls = [side for side, who in (("offense", staff["off_caller"]), ("defense", staff["def_caller"])) if who == "HC"]
+    go = by_key.get("go_rate")
+    hc_numbers = [go] if go else []
+    unit = lambda side: {
+        "name": hc if staff[f"{side[:3]}_caller"] == "HC" else staff.get("oc" if side == "offense" else "dc"),
+        "title": "Head coach" if staff[f"{side[:3]}_caller"] == "HC" else ("Offensive coordinator" if side == "offense" else "Defensive coordinator"),
+        "is_hc": staff[f"{side[:3]}_caller"] == "HC",
+        "coordinator": staff.get("oc" if side == "offense" else "dc") if staff[f"{side[:3]}_caller"] == "HC" else None,
+        "scheme": staff.get(f"{side[:3]}_scheme"), "tree": staff.get(f"{side[:3]}_tree"),
+        "philosophy": staff.get(f"{side[:3]}_philosophy"),
+        "numbers": pick(OFF_NUMBERS if side == "offense" else DEF_NUMBERS)}
+    return clean({"team": t, "name": TEAM_NAME.get(t, t),
+                  "head_coach": {"name": hc, "calls": hc_calls, "ceo": bool(staff.get("hc_ceo")) and not hc_calls,
+                                 "ceo_note": COACHES["hc_ceo_note"], "numbers": hc_numbers},
+                  "offense": unit("offense"), "defense": unit("defense"),
+                  "style": prof.get("summary", []), "change": staff.get("change"),
+                  "sources": COACHES["sources"], "updated": COACHES["updated"]})
+
+
+# ---------------- search + ask ----------------
+
+def resolve_team(q: str):
+    """'KC', 'chiefs', 'Kansas City', 'kansas city chiefs' -> 'KC'."""
+    if not q:
+        return None
+    s = q.strip().lower()
+    for abbr, name in TEAM_NAME.items():
+        if s in (abbr.lower(), name.lower(), name.split()[-1].lower(), " ".join(name.split()[:-1]).lower()):
+            return abbr
+    hits = [abbr for abbr, name in TEAM_NAME.items() if s in name.lower()]
+    return hits[0] if len(hits) == 1 else (norm(q.upper()) if norm(q.upper()) in TEAM_NAME else None)
+
+
+def _find_player(name: str):
+    t = S["totals"]
+    s = name.strip().lower()
+    exact = t[t.player_display_name.str.lower() == s]
+    if len(exact):
+        return exact.sort_values("games", ascending=False).iloc[0]
+    part = t[t.player_display_name.str.lower().str.contains(s, regex=False)]
+    if not len(part):
+        last = s.split()[-1]
+        part = t[t.player_display_name.str.lower().str.split().str[-1] == last]
+    return part.sort_values(["fantasy_points_ppr", "games"], ascending=False).iloc[0] if len(part) else None
+
+
+def _tool_standings():
+    g = S["games"]
+    season = int(g.season.max())
+    rec = seasonsim.standings(g, season)
+    odds = S["sim"]["teams"] if S["sim"] else {}
+    rows = []
+    for t, x in rec.items():
+        gp = x["w"] + x["l"] + x["t"]
+        hg, ag = sum(x["home"]), sum(x["away"])
+        rows.append({"team": t, "div": DIVISION_OF[t], "record": f'{x["w"]}-{x["l"]}' + (f'-{x["t"]}' if x["t"] else ""),
+                     "home": f'{x["home"][0]}-{x["home"][1]}', "home_margin": round(x["home_diff"] / hg, 1) if hg else None,
+                     "away": f'{x["away"][0]}-{x["away"][1]}', "away_margin": round(x["away_diff"] / ag, 1) if ag else None,
+                     "pf_g": round(x["pf"] / gp, 1) if gp else None, "pa_g": round(x["pa"] / gp, 1) if gp else None,
+                     "streak": x["streak"], "playoffs": round(odds.get(t, {}).get("playoffs", 0), 2),
+                     "div_title": round(odds.get(t, {}).get("division", 0), 2)})
+    return {"season": season, "teams": rows}
+
+
+def _tool_team(team: str):
+    t = resolve_team(team)
+    if not t:
+        return {"error": f"Unknown team '{team}'"}
+    d = api_team(t)
+    prof = d.get("tendencies") or {}
+    ng = d.get("next_game")
+    return {"team": t, "name": d["name"], "record": d["record"], "elo": d["elo"], "elo_rank": d["elo_rank"],
+            "efficiency": {k: d["stats"].get(k) for k in ("net_rank", "off_rank", "def_rank", "off_epa", "def_off_epa")},
+            "style": prof.get("summary", []),
+            "ranks": {x["label"]: x["rank"] for x in (prof.get("off", []) + prof.get("def", [])) if x.get("rank")},
+            "outlook": {k: round(v, 2) for k, v in (d.get("outlook") or {}).items() if isinstance(v, float)},
+            "next_game": None if not ng else {"week": ng["week"], "opponent": ng["away"] if ng["home"] == t else ng["home"],
+                                              "home": ng["home"] == t,
+                                              "win_prob": round(ng["model_home_prob"] if ng["home"] == t else 1 - ng["model_home_prob"], 2)},
+            "injuries": [f'{i["name"]} ({i["pos"]}) {i["status"]}' for i in d.get("injuries", [])[:6]]}
+
+
+def _tool_leaders(stat: str, team: str | None = None, n: int = 5):
+    g = S["games"]
+    season = int(g.season.max())
+    weeks = int(g[(g.season == season) & g.completed & (g.game_type == "REG")].week.max() or 1)
+    t = resolve_team(team) if team else None
+    groups = players.leaders(S["totals"], weeks, t, max(1, min(int(n or 5), 10)))
+    s = stat.lower().replace("touchdowns", "tds").replace("touchdown", "td")
+    cats = [c for gr in groups for c in gr["categories"] if s in c["stat"].lower() or c["stat"].lower() in s]
+    if not cats:   # loose match on words
+        words = set(s.split())
+        cats = [c for gr in groups for c in gr["categories"] if words & set(c["stat"].lower().split())]
+    return {"season": season, "through_week": weeks, "team": t,
+            "results": [{"stat": c["stat"], "leaders": [f'{p["name"]} ({p["pos"]}, {p["team"]}): {p["value"]}{p["unit"]}'
+                                                         for p in c["players"]]} for c in cats[:3]],
+            "available_stats": None if cats else [c["stat"] for gr in groups for c in gr["categories"]]}
+
+
+def _tool_player(name: str):
+    r = _find_player(name)
+    if r is None:
+        return {"error": f"No player found matching '{name}'"}
+    d = api_player(r.player_id)
+    return {"name": d["name"], "pos": d["pos"], "team": d["team"], "games": d["games"],
+            "season": {s["label"]: s["value"] for s in d["season_line"]}, "league_ranks": d["ranks"],
+            "fantasy_ppg": d["fantasy"]["ppg"], "last_games": [{"week": g["week"], "opp": g["opp"], "result": g.get("result"),
+                                                                 "fantasy": g["fp"]} for g in d["log"][-3:]],
+            "next": d.get("next"), "injury": d.get("injury")}
+
+
+def _tool_games(week: int | None = None, team: str | None = None):
+    g = S["games"]
+    season = int(g.season.max())
+    t = resolve_team(team) if team else None
+    d = g[(g.season == season) & (g.game_type == "REG")]
+    if week:
+        d = d[d.week == int(week)]
+    elif not t:
+        d = d[d.week == current_week(g)[1]]
+    if t:
+        d = d[(d.home_team.map(norm) == t) | (d.away_team.map(norm) == t)]
+    out = []
+    for r in d.itertuples():
+        x = game_row(r)
+        row = {"week": x["week"], "game": f'{x["away"]} at {x["home"]}', "pick": x["pick"],
+               "pick_chance": round(max(x["model_home_prob"], 1 - x["model_home_prob"]), 2)}
+        if x["completed"]:
+            row.update(score=f'{x["away"]} {x["away_score"]}, {x["home"]} {x["home_score"]}', model_correct=x["correct"])
+        out.append(row)
+    return {"season": season, "games": out}
+
+
+def _tool_playoffs(conference: str | None = None):
+    odds = sorted(S["sim"]["teams"].values(), key=lambda o: -o["playoffs"])
+    if conference:
+        odds = [o for o in odds if CONF_OF[o["team"]] == conference.upper()]
+    return {"teams": [{"team": o["team"], "proj_record": f'{o["proj_wins"]:.1f}-{o["proj_losses"]:.1f}',
+                       **{k: round(o[k], 3) for k in ("playoffs", "division", "bye", "super_bowl", "champion")}} for o in odds]}
+
+
+def _tool_fantasy(position: str | None = None, n: int = 10):
+    f = S["fantasy"].get("ppr")
+    if not f:
+        return {"error": "No projections available"}
+    p = f["players"]
+    if position:
+        p = p[p.pos == position.upper()]
+    return {"week": f["week"], "byes": f["byes"], "players": [
+        {"name": r.name, "pos": f"{r.pos}{r.pos_rank}", "team": r.team, "opp": r.opp, "proj": r.proj, "verdict": r.verdict,
+         "why": r.reasons[:2]} for r in p.head(max(1, min(int(n or 10), 25))).itertuples()]}
+
+
+def _tool_matchup(team_a: str, team_b: str):
+    a, b = resolve_team(team_a), resolve_team(team_b)
+    if not a or not b:
+        return {"error": "Unknown team"}
+    out = {"keys": tendencies.matchup_keys(S["tend"], a, b, 3) + tendencies.matchup_keys(S["tend"], b, a, 3)}
+    g = S["games"]
+    m = g[(g.season == g.season.max()) & (((g.home_team.map(norm) == a) & (g.away_team.map(norm) == b))
+                                          | ((g.home_team.map(norm) == b) & (g.away_team.map(norm) == a)))]
+    out["games_this_season"] = [{"week": int(r.week), "home": norm(r.home_team), "away": norm(r.away_team),
+                                 "home_win_prob": round(float(r.model_home_prob), 2),
+                                 "score": None if not r.completed else f"{int(r.away_score)}-{int(r.home_score)}"}
+                                for r in m.itertuples()]
+    return out
+
+
+ASK_TOOLS = {"standings_and_splits": _tool_standings, "team_profile": _tool_team, "stat_leaders": _tool_leaders,
+             "player_lookup": _tool_player, "games": _tool_games, "playoff_odds": _tool_playoffs,
+             "fantasy_rankings": _tool_fantasy, "matchup": _tool_matchup}
+
+
+@app.get("/api/search-index")
+@cached
+def api_search_index():
+    t = S["totals"]
+    t = t[(t.fantasy_points_ppr.fillna(0) > 0) | (t.tackles.fillna(0) >= 3) | (t.fg_att.fillna(0) > 0)]
+    return clean({"teams": [{"team": k, "name": v} for k, v in sorted(TEAM_NAME.items())],
+                  "players": [[r.player_id, r.player_display_name, r.position, r.team] for r in t.itertuples()],
+                  "ask_enabled": ask.enabled()})
+
+
+class Question(BaseModel):
+    question: str
+    history: list[dict] = []
+
+
+@app.post("/api/ask")
+async def api_ask(q: Question, request: Request):
+    if not ask.enabled():
+        raise HTTPException(503, "Ask isn't turned on for this site yet.")
+    text = q.question.strip()
+    if len(text) < 3:
+        raise HTTPException(400, "Type a question first.")
+    visitor = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")).split(",")[0].strip()
+    limited = ask.check_limits(visitor)
+    if limited:
+        raise HTTPException(429, limited)
+    try:
+        return await asyncio.to_thread(ask.answer, text, ASK_TOOLS, q.history)
+    except Exception as e:
+        print("ask error:", repr(e))
+        raise HTTPException(502, "Couldn't get an answer right now. Try again in a moment.")
+
+
 # ---------------- news ----------------
 
 def _local(request: Request) -> bool:
@@ -646,14 +936,14 @@ class Story(BaseModel):
 
 
 @app.get("/api/news")
-async def api_news(request: Request, team: str | None = None):
+async def api_news(request: Request, team: str | None = None, teams: str | None = None):
     async with httpx.AsyncClient() as client:
         espn = await news.espn_headlines(client)
     mine, auto = news.my_stories(), espn["items"]
-    if team:
-        t = norm(team.upper())
-        mine = [s for s in mine if t in s.get("teams", [])]
-        auto = [s for s in auto if t in s.get("teams", [])]
+    wanted = {norm(x.strip().upper()) for x in (teams or team or "").split(",") if x.strip()}
+    if wanted:
+        mine = [s for s in mine if wanted & set(s.get("teams", []))]
+        auto = [s for s in auto if wanted & set(s.get("teams", []))]
     return {"mine": mine, "headlines": auto, "error": espn["error"], "can_edit": _local(request)}
 
 

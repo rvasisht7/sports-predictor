@@ -1,13 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12261b">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Predictor">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Team - Sports Predictor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=8">
+<link rel="stylesheet" href="/style.css?v=10">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="/common.js?v=8"></script>
+<script src="/common.js?v=10"></script>
 </head>
 <body>
 <main>
@@ -49,11 +57,15 @@
   </section>
   <section>
     <div class="sec-head"><div><h2>Schedule</h2><p>The model's chance for this team in every game. Finished games are graded.</p></div></div>
-    <div class="table-wrap"><table id="sched"><thead><tr><th>Week</th><th>Opponent</th><th>Starting QBs</th><th>Win chance</th><th>Result</th></tr></thead><tbody></tbody></table></div>
+    <div class="table-wrap"><table id="sched"><thead><tr><th>Week</th><th>Opponent</th><th>Win chance</th><th>Result</th></tr></thead><tbody></tbody></table></div>
   </section>
   <section>
     <div class="sec-head"><div><h2 id="inj-title">Injury report</h2><p>Snap share is how much the player usually plays. Out and Doubtful players count against the team in the model; quarterbacks are handled by the QB factor instead.</p></div></div>
     <div class="panel" id="inj"></div>
+  </section>
+  <section id="coach-wrap" hidden>
+    <div class="sec-head"><div><h2>Coaching staff</h2><p id="coach-line"></p></div>
+      <button class="primary" id="coach-btn">View coaching staff</button></div>
   </section>
   <footer>Data from nflverse.</footer>
 </main>
@@ -62,6 +74,50 @@ $("#nav").innerHTML = navHTML("Teams");
 const T = (new URLSearchParams(location.search).get("t") || "KC").toUpperCase();
 getJSON("/api/teams").then(d=>{ $("#switch").innerHTML += d.teams.map(t=>t.team).sort().map(t=>`<option ${t===T?"selected":""}>${t}</option>`).join("");});
 $("#news-more").href = `/news.html?team=${T}`;
+
+/* ---------- coaching staff (opens in a pop-up so the page stays clean) ---------- */
+let COACH = null;
+getJSON(`/api/coaches/${T}`).then(c => {
+  COACH = c;
+  const o = c.offense, d = c.defense;
+  $("#coach-line").textContent = `Head coach ${c.head_coach.name}. Offense called by ${o.is_hc ? "the head coach" : o.name}, defense by ${d.is_hc ? "the head coach" : d.name}.`;
+  $("#coach-wrap").hidden = false;
+}).catch(() => {});
+function numbersHTML(list){
+  if (!list || !list.length) return "";
+  const badge = x => x.rank==null ? "" : x.style ? `<span class="rk-badge rk-style">${ordinal(x.rank)}</span>`
+    : `<span class="rk-badge ${x.good_rank<=10?"rk-good":x.good_rank>=23?"rk-bad":"rk-mid"}">${ordinal(x.good_rank)}</span>`;
+  return `<h4>By the numbers this season</h4>` + list.map(x => `<div class="trow"><span>${x.label}</span><span class="tv">${x.value}</span>${badge(x)}</div>`).join("");
+}
+function coachCard(role, p, extraBadges){
+  const rows = [["Scheme", p.scheme], ["Coaching tree", p.tree], ["Philosophy", p.philosophy]].filter(r => r[1]);
+  return `<div class="coach"><span class="role">${role}</span><h3>${esc(p.name || "Not listed")}</h3>
+    <p class="muted">${esc(p.title || "")}${extraBadges || ""}</p>
+    ${p.coordinator ? `<p class="muted" style="font-size:.85rem">Coordinator: ${esc(p.coordinator)} (doesn't call plays)</p>` : ""}
+    ${rows.map(([k, v]) => `<p><b>${k}.</b> ${esc(v)}</p>`).join("") || `<p class="muted">No scheme notes on file yet; the numbers below show how this unit actually plays.</p>`}
+    ${numbersHTML(p.numbers)}</div>`;
+}
+$("#coach-btn").onclick = () => {
+  if (!COACH) return;
+  const c = COACH, hc = c.head_coach;
+  let dlg = document.getElementById("coach-dlg");
+  if (!dlg){ dlg = document.createElement("dialog"); dlg.id = "coach-dlg"; dlg.className = "pcard";
+    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); }); document.body.appendChild(dlg); }
+  const calls = hc.calls.length ? `<span class="tag hc-tag">Calls the ${hc.calls.join(" and ")}</span>` : "";
+  const hcCard = `<div class="coach"><span class="role">Head coach</span><h3>${esc(hc.name)}</h3><p class="muted">${calls}</p>
+    <p>${hc.calls.length ? `Also the ${hc.calls.join(" and ")} play caller, so ${hc.calls.length === 1 ? "that unit's" : "those units'"} scheme notes below are his.`
+       : hc.ceo ? esc(hc.ceo_note) : "Doesn't call plays on either side of the ball."}</p>
+    ${numbersHTML(hc.numbers)}</div>`;
+  dlg.innerHTML = `<div class="pc-in"><button class="pc-x" aria-label="Close" onclick="this.closest('dialog').close()">×</button>
+    <h2 style="margin-bottom:4px">${esc(c.name)} coaching staff</h2>
+    ${c.change ? `<p class="change">${esc(c.change)}</p>` : ""}
+    <div class="coaches">${hcCard}
+      ${coachCard("Offensive play caller", c.offense)}
+      ${coachCard("Defensive play caller", c.defense)}</div>
+    ${c.style.length ? `<h4 style="margin-top:16px">Team style</h4><div class="keys">${c.style.map(s => `<div class="key">${esc(s)}</div>`).join("")}</div>` : ""}
+    <p class="muted" style="font-size:.78rem;margin-top:16px">Staff current as of ${c.updated}. Sources: ${esc(c.sources)} Ranks: green and red are strengths and weaknesses, gray describes style.</p></div>`;
+  dlg.showModal();
+};
 $("#leaders-more").href = `/leaders.html?team=${T}`;
 const GROUP_NAMES = {QB:"Quarterbacks", RB:"Running backs", WR:"Receivers", TE:"Tight ends", K:"Kickers", DEF:"Defense"};
 getJSON(`/api/roster/${T}`).then(R=>{
@@ -126,9 +182,7 @@ getJSON(`/api/team/${T}`).then(d=>{
   $("#sched tbody").innerHTML = d.schedule.map(g=>{
     let res = `<span class="muted">${g.gameday}</span>`;
     if (g.result) res = `${g.result} ${g.correct==null?"":`<span class="${g.correct?'ok':'no'}">model ${g.correct?"right":"wrong"}</span>`}`;
-    const qbs = g.at_home ? `${g.home_qb||"?"} vs. ${g.away_qb||"?"}` : `${g.away_qb||"?"} vs. ${g.home_qb||"?"}`;
-    return `<tr><td>${g.week}</td><td>${g.at_home?"vs.":"at"} ${teamLink(g.opponent)}</td><td class="muted">${esc(qbs)}</td>
-      <td>${pct(g.team_prob)}<span class="prob"><i style="width:${g.team_prob*100}%"></i></span></td><td>${res}</td></tr>`;
+    return `<tr><td>${g.week}</td><td>${g.at_home?"vs.":"at"} ${teamLink(g.opponent)}</td>      <td>${pct(g.team_prob)}<span class="prob"><i style="width:${g.team_prob*100}%"></i></span></td><td>${res}</td></tr>`;
   }).join("");
   $("#inj-title").textContent = `Week ${d.injury_week} injury report`;
   $("#inj").innerHTML = injuriesHTML(d.injuries);

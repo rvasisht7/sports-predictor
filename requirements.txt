@@ -3,7 +3,6 @@ polars
 pandas
 pyarrow
 numpy
-scikit-learn
 anthropic
 fastapi
 uvicorn[standard]

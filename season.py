@@ -22,7 +22,7 @@ ROUND_NAMES = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conference Champi
 
 def standings(games: pd.DataFrame, season: int) -> dict:
     rec = {t: {"team": t, "w": 0, "l": 0, "t": 0, "pf": 0, "pa": 0, "home": [0, 0, 0], "away": [0, 0, 0],
-               "div": [0, 0, 0], "conf": [0, 0, 0], "results": []} for t in TEAMS}
+               "home_diff": 0, "away_diff": 0, "div": [0, 0, 0], "conf": [0, 0, 0], "results": []} for t in TEAMS}
     d = games[(games.season == season) & (games.game_type == "REG") & games.completed].sort_values("gameday")
     for r in d.itertuples():
         h, a = norm(r.home_team), norm(r.away_team)
@@ -34,6 +34,7 @@ def standings(games: pd.DataFrame, season: int) -> dict:
             x["wlt"[k]] += 1
             x["pf"] += int(us); x["pa"] += int(them)
             x[where][k] += 1
+            x[where + "_diff"] += int(us) - int(them)
             other = a if team == h else h
             if DIVISION_OF[other] == DIVISION_OF[team]:
                 x["div"][k] += 1

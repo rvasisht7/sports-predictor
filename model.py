@@ -14,9 +14,6 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 
 from elo import norm
 
@@ -102,11 +99,41 @@ def build_features(games: pd.DataFrame, team_games: pd.DataFrame, qb_games: pd.D
     return games.join(feats)
 
 
+class Logit:
+    """Logistic regression with standardized inputs and L2 regularization, fit with
+    Newton's method. Same math as scikit-learn's LogisticRegression(C=0.5) with a
+    StandardScaler, in a few lines of numpy (scikit-learn alone needs ~160 MB of memory)."""
+
+    def __init__(self, C: float = 0.5, iters: int = 50):
+        self.C, self.iters = C, iters
+
+    def fit(self, X, y):
+        X, y = np.asarray(X, float), np.asarray(y, float)
+        self.mean_, self.scale_ = X.mean(0), X.std(0)
+        self.scale_[self.scale_ == 0] = 1.0
+        Z = np.hstack([np.ones((len(X), 1)), (X - self.mean_) / self.scale_])
+        w = np.zeros(Z.shape[1])
+        reg = np.full(Z.shape[1], 1 / self.C); reg[0] = 0.0      # intercept isn't penalized
+        for _ in range(self.iters):
+            p = 1 / (1 + np.exp(-Z @ w))
+            grad = Z.T @ (p - y) + reg * w
+            hess = (Z * (p * (1 - p))[:, None]).T @ Z + np.diag(reg)
+            step = np.linalg.solve(hess, grad)
+            w -= step
+            if np.abs(step).max() < 1e-8:
+                break
+        self.intercept_, self.coef_ = np.array([w[0]]), w[None, 1:]
+        return self
+
+    def predict_proba(self, X):
+        z = ((np.asarray(X, float) - self.mean_) / self.scale_) @ self.coef_[0] + self.intercept_[0]
+        p = 1 / (1 + np.exp(-z))
+        return np.column_stack([1 - p, p])
+
+
 def _fit(train: pd.DataFrame):
     d = train[train.completed & (train.home_win != 0.5)]
-    m = make_pipeline(StandardScaler(), LogisticRegression(C=0.5))
-    m.fit(d[FEATURES], d.home_win)
-    return m
+    return Logit(C=0.5).fit(d[FEATURES], d.home_win)
 
 
 def walk_forward(df: pd.DataFrame, first_test_season: int = 2015) -> pd.DataFrame:
@@ -128,10 +155,9 @@ def walk_forward(df: pd.DataFrame, first_test_season: int = 2015) -> pd.DataFram
 def explain(model, row) -> list[dict]:
     """How much each factor pushed the home team's chances (in log-odds),
     turned into percentage-point contributions that add up to the final prob."""
-    scaler, lr = model.named_steps["standardscaler"], model.named_steps["logisticregression"]
-    x = (np.array([row[f] for f in FEATURES], dtype=float) - scaler.mean_) / scaler.scale_
-    contrib = lr.coef_[0] * x
-    base = lr.intercept_[0]
+    x = (np.array([row[f] for f in FEATURES], dtype=float) - model.mean_) / model.scale_
+    contrib = model.coef_[0] * x
+    base = model.intercept_[0]
     sig = lambda z: 1 / (1 + math.exp(-z))
     out, running = [{"factor": "Home field", "points": round((sig(base) - 0.5) * 100, 1)}], base
     for f, c in sorted(zip(FEATURES, contrib), key=lambda t: -abs(t[1])):
@@ -141,5 +167,4 @@ def explain(model, row) -> list[dict]:
 
 
 def coefficients(model) -> dict:
-    lr = model.named_steps["logisticregression"]
-    return {LABELS[f]: round(float(c), 3) for f, c in zip(FEATURES, lr.coef_[0])}
+    return {LABELS[f]: round(float(c), 3) for f, c in zip(FEATURES, model.coef_[0])}

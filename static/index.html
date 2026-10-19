@@ -1,72 +1,51 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12261b">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Predictor">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Sports Predictor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=8">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="/common.js?v=8"></script>
+<link rel="stylesheet" href="/style.css?v=10">
+<script src="/common.js?v=10"></script>
 </head>
 <body>
 <main>
   <div id="nav"></div>
-  <header>
-    <div>
-      <h1>Sports Predictor</h1>
-      <p>NFL win probabilities from a model built on Elo ratings, play-by-play efficiency, quarterbacks and injuries, recalculated live as games are played.</p>
-    </div>
+  <div class="hello">
+    <div><h1 id="hello-title">This week</h1><p id="hello-sub">NFL predictions, updated live.</p></div>
     <div class="status"><span class="dot" id="dot"></span><span id="status-text">Connecting</span></div>
-  </header>
+  </div>
 
-  <section>
-    <div class="sec-head"><div><h2>Your teams</h2><p id="yt-sub">Star teams on the Teams, Standings or team pages to follow them here.</p></div>
-      <button id="notify-btn" hidden>Turn on notifications</button></div>
+  <section id="yt-wrap">
+    <div class="sec-head"><div><h2>Your teams</h2></div><button id="notify-btn" hidden>Turn on notifications</button></div>
     <div class="yt" id="yt"></div>
   </section>
 
   <section>
-    <div class="sec-head">
-      <div><h2>Live games</h2>
-      <p>The bar is each team's chance to win right now. The line traces the home team's chance through the game; above the dashed line means they're favored.</p></div>
-      <button id="sim-btn">Simulate a game</button>
+    <div class="sec-head"><div><h2>Games</h2><p>Each team's chance to win, live during games.</p></div>
+      <button class="linkbtn" id="sim-open">Simulate a matchup</button></div>
+    <div class="simbar" id="simbar" hidden>
+      <select id="sim-away" aria-label="Away team"></select><span class="at">at</span><select id="sim-home" aria-label="Home team"></select>
+      <button class="primary" id="sim-go">Start</button><button id="sim-close">Cancel</button>
     </div>
     <div class="board" id="board"></div>
   </section>
 
   <section>
-    <div class="sec-head"><div><h2 id="picks-title">This week's picks</h2>
-      <p>Open a game to see what drove the prediction and who's injured.</p></div></div>
+    <div class="sec-head"><div><h2 id="picks-title">This week's picks</h2></div></div>
+    <p class="factline" id="factline" hidden><b>Did you know</b><span id="fact"></span></p>
     <div class="picks" id="picks"></div>
   </section>
 
-  <section>
-    <div class="fact"><p id="fact">Loading this season's numbers</p><button id="fact-btn">Another stat</button></div>
-  </section>
-
-  <section>
-    <div class="sec-head"><div><h2>Model</h2></div></div>
-    <div class="charts">
-      <div class="panel tall">
-        <h3>Power rankings</h3>
-        <p>Current Elo rating. 1500 is an average team; 100 points is roughly a 4-point favorite.</p>
-        <div class="canvas-box"><canvas id="rank-chart"></canvas></div>
-      </div>
-      <div class="panel">
-        <h3>Rating over time</h3>
-        <p>How each team's rating moved game by game over the last two seasons.</p>
-        <div class="chips" id="chips"></div>
-        <div class="canvas-box"><canvas id="elo-chart"></canvas></div>
-      </div>
-      <div class="panel">
-        <h3>Accuracy by season</h3>
-        <p>Brier score, lower is better. Each season is predicted by a model trained only on earlier seasons.</p>
-        <div class="canvas-box"><canvas id="bt-chart"></canvas></div>
-      </div>
-    </div>
-  </section>
-  <footer>Data from nflverse and ESPN. Predictions are for fun and learning, not betting advice.</footer>
+  <footer><a href="/how.html">How the model works</a> &nbsp; <a href="/tracker.html">Model accuracy</a></footer>
 </main>
 
 <script>
@@ -79,16 +58,23 @@ async function loadYourTeams(){
   const on = localStorage.getItem("notify") === "on" && window.Notification && Notification.permission === "granted";
   $("#notify-btn").textContent = on ? "Notifications on" : "Turn on notifications";
   $("#notify-btn").className = on ? "" : "primary";
-  if (!fav.length){ $("#yt").innerHTML = `<div class="empty">No favorite teams yet. Tap the ☆ next to any team to follow it.</div>`; return; }
-  $("#yt-sub").textContent = on ? "You'll get notified about scores, big swings and changes to these teams' chances while this site is open."
-                                : "Turn on notifications to hear about scores, big swings and changes to these teams' chances.";
-  const d = await getJSON(`/api/favorites?teams=${fav.join(",")}`);
-  $("#yt").innerHTML = d.map(t=>`<div class="ytc"><h3>${starBtn(t.team)}<a href="/team.html?t=${t.team}">${esc(t.name)}</a></h3>
-    ${t.live ? `<p class="livebox">Live: ${t.team} ${t.live.us}, ${t.next?t.next.opp:""} ${t.live.them}. ${esc(t.live.detail)}. Win chance ${pct(t.live.win_prob)}</p>` : ""}
-    <div class="rows"><span>Record</span><span>${t.record}, ${t.division}</span>
-    ${t.last?`<span>Last game</span><span>${t.last.result} ${t.last.home?"vs.":"at"} ${t.last.opp}</span>`:""}
-    ${t.next?`<span>Next</span><span>Week ${t.next.week} ${t.next.home?"vs.":"at"} ${teamLink(t.next.opp)}: ${pct(t.next.win_prob)} to win</span>`:""}
-    ${t.outlook?`<span>Playoffs</span><span>${pct(t.outlook.playoffs)} chance, ${pct(t.outlook.champion)} to win it all</span>`:""}</div></div>`).join("");
+  if (!fav.length){
+    $("#yt").innerHTML = `<div class="empty" style="padding:16px">Tap the ☆ next to any team (on Teams or Standings) to follow it here, with its news and alerts.</div>`;
+    return;
+  }
+  const [d, news] = await Promise.all([getJSON(`/api/favorites?teams=${fav.join(",")}`),
+    getJSON(`/api/news?teams=${fav.join(",")}`).catch(() => ({mine: [], headlines: []}))]);
+  const stories = [...news.mine, ...news.headlines];
+  $("#yt").innerHTML = d.map(t => {
+    const s = stories.find(x => (x.teams || []).includes(t.team));
+    return `<div class="ytc"><h3>${starBtn(t.team)}<a href="/team.html?t=${t.team}">${esc(t.name)}</a></h3>
+      ${t.live ? `<p class="livebox">Live: ${t.team} ${t.live.us}, ${t.next ? t.next.opp : ""} ${t.live.them}. ${esc(t.live.detail)}. Win chance ${pct(t.live.win_prob)}</p>` : ""}
+      <div class="rows"><span>Record</span><span>${t.record}</span>
+      ${t.next ? `<span>Next</span><span>${t.next.home ? "vs." : "at"} ${teamLink(t.next.opp)}, ${pct(t.next.win_prob)} to win</span>` : ""}
+      ${t.outlook ? `<span>Playoffs</span><span>${pct(t.outlook.playoffs)} chance</span>` : ""}</div>
+      ${s ? `<p class="headline"><a href="${/^https?:\/\//.test(s.url) ? s.url : "#"}" target="_blank" rel="noopener">${esc(s.title)}</a><span>${esc(s.source || "Saved story")}</span></p>` : ""}
+    </div>`;
+  }).join("");
 }
 $("#notify-btn").onclick = async () => {
   if (localStorage.getItem("notify") === "on" && Notification.permission === "granted"){ Notify.disable(); toast("Notifications off."); }
@@ -108,8 +94,8 @@ function liveProb(pre, margin, minsLeft){
   return cdf((margin + 13.5*invCdf(Math.min(Math.max(pre,.001),.999))*f) / (13.5*Math.sqrt(f)));
 }
 
-/* ---------- live board ---------- */
-let serverGames = [], simGame = null, liveError = null;
+/* ---------- game board ---------- */
+let serverGames = [], simGame = null, liveError = null, TEAMS = [];
 function spark(hist){
   const W=300,H=64;
   if (!hist || hist.length < 2) return "";
@@ -126,23 +112,27 @@ function gameCard(g){
   if (g.state === "pre") foot = `Model favors ${fav} at ${pct(Math.max(hp,1-hp))} before kickoff`;
   else if (live) foot = `Pregame ${pct(g.pregame_home_prob)} for ${g.home.abbr}, now ${pct(hp)}`;
   else { const pf = g.pregame_home_prob >= .5 ? g.home.abbr : g.away.abbr, w = g.home.score > g.away.score ? g.home.abbr : g.away.abbr;
-    foot = pf === w ? `Model picked ${pf} and was right` : `Model picked ${pf}; ${w} won`; }
+    foot = g.sim ? `Final. ${w} wins the simulation.` : pf === w ? `Model picked ${pf} and was right` : `Model picked ${pf}; ${w} won`; }
   const team = (t, side, p) => `<div class="row ${side}">
-    <div><span class="abbr ${g.possession===t.abbr?'poss':''}">${t.abbr}</span><span class="nm">${t.name}${t.record?` (${t.record})`:""}</span></div>
+    <div><span class="abbr ${g.possession===t.abbr?'poss':''}">${t.abbr}</span><span class="nm">${esc(t.name)}${t.record?` (${t.record})`:""}</span></div>
     <div class="sc">${g.state==="pre"?"":t.score}</div><div class="pc">${pct(p)}</div></div>`;
   const favd = [g.home.abbr, g.away.abbr].some(t => Fav.has(t));
-  return `<article class="game ${live?'live':''} ${favd?'fav-game':''}">
-    <div class="game-top"><span class="state">${g.sim?"Simulated, ":""}${g.detail}</span><span>${g.down||""}${g.red_zone?" in the red zone":""}</span></div>
+  const ctl = g.sim ? `<div class="simctl">${g.state === "post"
+      ? `<button data-sim="again">Run again</button><button data-sim="discard">Discard</button>`
+      : `<button data-sim="pause">${simPaused ? "Resume" : "Pause"}</button><button data-sim="speed">${simFast ? "Normal speed" : "Faster"}</button><button data-sim="discard">Discard</button>`}</div>` : "";
+  return `<article class="game ${live?'live':''} ${favd && !g.sim?'fav-game':''} ${g.sim?'sim':''}">
+    <div class="game-top"><span class="state">${g.sim?"Simulation: ":""}${g.detail}</span><span>${g.down||""}${g.red_zone?" in the red zone":""}</span></div>
     ${team(g.away,"away",1-hp)}${team(g.home,"home",hp)}
     <div class="field" aria-label="${g.home.abbr} ${pct(hp)} to win"><div class="home-fill" style="width:${hp*100}%"></div><div class="mid"></div></div>
-    ${spark(g.history)}<p class="game-foot">${foot}</p></article>`;
+    ${spark(g.history)}<p class="game-foot">${foot}</p>${ctl}</article>`;
 }
 function renderBoard(){
   const order = {in:0,pre:1,post:2};
   const favd = g => [g.home.abbr, g.away.abbr].some(t => Fav.has(t)) ? 0 : 1;
-  const games = [...(simGame?[simGame]:[]), ...serverGames].sort((a,b)=>order[a.state]-order[b.state] || favd(a)-favd(b));
+  const games = [...(simGame?[simGame]:[]), ...serverGames.slice().sort((a,b)=>order[a.state]-order[b.state] || favd(a)-favd(b))];
   $("#board").innerHTML = games.length ? games.map(gameCard).join("") :
-    `<div class="empty"><p>${liveError ? "Live scores are unavailable right now." : "No games on ESPN's scoreboard right now."}</p><button class="primary" onclick="startSim()">Simulate a game</button></div>`;
+    `<div class="empty"><p>${liveError ? "Live scores are unavailable right now." : "No games on the scoreboard right now."}</p>
+     <button class="primary" onclick="openSim()">Simulate a matchup</button></div>`;
 }
 async function loadLive(){
   try{
@@ -150,40 +140,75 @@ async function loadLive(){
     serverGames = d.games || []; liveError = d.error;
     const anyLive = serverGames.some(g=>g.state==="in");
     $("#dot").className = "dot " + (d.error ? "err" : anyLive ? "on" : "");
-    $("#status-text").textContent = d.error ? d.error : anyLive ? `Games in progress, updated ${ago(d.updated)}` : `Scores checked ${ago(d.updated)}`;
+    $("#status-text").textContent = d.error ? "Live scores unavailable" : anyLive ? `Live, updated ${ago(d.updated)}` : `Scores checked ${ago(d.updated)}`;
   }catch(e){ $("#dot").className="dot err"; $("#status-text").textContent="Can't reach the server"; }
   renderBoard();
 }
 
-/* ---------- simulated game ---------- */
-let simTimer = null;
-function startSim(){
+/* ---------- simulator: pick two real teams, pause or discard any time ---------- */
+let simTimer = null, simPaused = false, simFast = false, simPre = .5, simMins = 60;
+async function openSim(){
+  if (!TEAMS.length){ const d = await getJSON("/api/teams"); TEAMS = d.teams.slice().sort((a,b)=>a.team.localeCompare(b.team)); }
+  const opts = sel => TEAMS.map(t => `<option value="${t.team}" ${t.team===sel?"selected":""}>${t.team}</option>`).join("");
+  let away = "SF", home = "KC";
+  const fav = Fav.get()[0];
+  try {
+    if (fav){ const f = (await getJSON(`/api/favorites?teams=${fav}`))[0]; if (f && f.next){ [away, home] = f.next.home ? [f.next.opp, fav] : [fav, f.next.opp]; } }
+    else { const p = await getJSON("/api/predictions"); const g = p.games.find(x => !x.completed); if (g){ away = g.away; home = g.home; } }
+  } catch(e){}
+  $("#sim-away").innerHTML = opts(away); $("#sim-home").innerHTML = opts(home);
+  $("#simbar").hidden = false; $("#sim-away").focus();
+}
+$("#sim-open").onclick = openSim;
+$("#sim-close").onclick = () => { $("#simbar").hidden = true; };
+$("#sim-go").onclick = async () => {
+  const a = $("#sim-away").value, h = $("#sim-home").value;
+  if (a === h){ toast("Pick two different teams."); return; }
+  try { simPre = (await getJSON(`/api/matchup-prob?home=${h}&away=${a}`)).home_prob; } catch(e){ simPre = .55; }
+  const name = t => (TEAMS.find(x => x.team === t) || {}).name || t;
+  $("#simbar").hidden = true;
+  startSim(a, h, name(a).split(" ").pop(), name(h).split(" ").pop());
+};
+function startSim(a, h, an, hn){
+  clearInterval(simTimer); simPaused = false; simMins = 60;
+  simGame = {sim:true, id:"sim", state:"in", detail:"15:00 - 1st", pregame_home_prob:simPre, live_home_prob:simPre,
+    home:{abbr:h, name:hn, score:0}, away:{abbr:a, name:an, score:0}, history:[[60, simPre]]};
+  runSim(); renderBoard();
+  document.getElementById("board").scrollIntoView({behavior: "smooth", block: "start"});
+}
+function runSim(){
   clearInterval(simTimer);
-  const pre = .35 + Math.random()*.4;
-  simGame = {sim:true,id:"sim",state:"in",detail:"15:00 - 1st",pregame_home_prob:pre,live_home_prob:pre,
-    home:{abbr:"HOME",name:"Home team",score:0},away:{abbr:"AWAY",name:"Away team",score:0},history:[[60,pre]]};
-  let mins = 60;
-  simTimer = setInterval(()=>{
-    mins = Math.max(0, mins - (0.6 + Math.random()*1.4));
-    if (Math.random() < .16){ const home = Math.random() < .5 + (pre-.5)*.8; (home?simGame.home:simGame.away).score += Math.random()<.62?7:3; }
-    let margin = simGame.home.score - simGame.away.score;
-    const period = Math.min(4, Math.floor((60-mins)/15)+1), inQ = mins - (4-period)*15;
-    const mm = Math.floor(inQ), ss = String(Math.round((inQ-mm)*60)).padStart(2,"0");
-    simGame.detail = mins<=0 ? "Final" : `${mm}:${ss} - ${["1st","2nd","3rd","4th"][period-1]}`;
-    if (mins<=0 && margin===0){ simGame.home.score += 3; margin = 3; simGame.detail="Final/OT"; }
-    simGame.live_home_prob = liveProb(pre, margin, mins);
-    simGame.history.push([mins, simGame.live_home_prob]);
-    if (mins<=0){ simGame.state="post"; clearInterval(simTimer); }
-    renderBoard();
-  }, 900);
+  simTimer = setInterval(simTick, simFast ? 250 : 900);
+}
+function simTick(){
+  if (simPaused || !simGame) return;
+  simMins = Math.max(0, simMins - (0.6 + Math.random()*1.4));
+  if (Math.random() < .16){ const home = Math.random() < .5 + (simPre-.5)*.8; (home?simGame.home:simGame.away).score += Math.random()<.62?7:3; }
+  let margin = simGame.home.score - simGame.away.score;
+  const period = Math.min(4, Math.floor((60-simMins)/15)+1), inQ = simMins - (4-period)*15;
+  const mm = Math.floor(inQ), ss = String(Math.round((inQ-mm)*60)).padStart(2,"0");
+  simGame.detail = simMins<=0 ? "Final" : `${mm}:${ss} - ${["1st","2nd","3rd","4th"][period-1]}`;
+  if (simMins<=0 && margin===0){ (Math.random() < simPre ? simGame.home : simGame.away).score += 3; margin = simGame.home.score - simGame.away.score; simGame.detail="Final/OT"; }
+  simGame.live_home_prob = liveProb(simPre, margin, simMins);
+  simGame.history.push([simMins, simGame.live_home_prob]);
+  if (simMins<=0){ simGame.state="post"; clearInterval(simTimer); }
   renderBoard();
 }
-$("#sim-btn").onclick = startSim;
+$("#board").addEventListener("click", e => {
+  const b = e.target.closest("[data-sim]"); if (!b || !simGame) return;
+  const act = b.dataset.sim;
+  if (act === "discard"){ clearInterval(simTimer); simGame = null; renderBoard(); }
+  else if (act === "pause"){ simPaused = !simPaused; renderBoard(); }
+  else if (act === "speed"){ simFast = !simFast; runSim(); renderBoard(); }
+  else if (act === "again"){ startSim(simGame.away.abbr, simGame.home.abbr, simGame.away.name, simGame.home.name); }
+});
 
 /* ---------- picks ---------- */
 async function loadPicks(){
   const d = await getJSON("/api/predictions");
-  $("#picks-title").textContent = `${d.season} week ${d.week} picks`;
+  $("#hello-title").textContent = `Week ${d.week}`;
+  $("#hello-sub").textContent = `${d.season} NFL season. ${d.games.filter(g=>!g.completed).length} games left to play this week.`;
+  $("#picks-title").textContent = `Week ${d.week} picks`;
   $("#picks").innerHTML = d.games.map(g => {
     const conf = Math.max(g.model_home_prob, 1 - g.model_home_prob);
     let res = `<span class="muted">Not played</span>`;
@@ -198,65 +223,21 @@ async function loadPicks(){
         <span class="hide-sm">${res}</span></summary>
       <div class="body">
         <div><h3 style="margin-bottom:8px">Why ${g.pick}</h3>${factorsHTML(g)}
-          <h3 style="margin:16px 0 8px">Matchup keys</h3>${keysHTML(g.keys)}
-          <p style="margin-top:10px;font-size:.9rem">Quarterbacks: ${esc(g.away_qb||"?")} (${g.away}) vs. ${esc(g.home_qb||"?")} (${g.home})</p></div>
+          <h3 style="margin:16px 0 8px">Matchup keys</h3>${keysHTML(g.keys)}</div>
         <div><h3 style="margin-bottom:8px">${teamLink(g.away)} injuries</h3>${injuriesHTML(g.away_injuries)}</div>
         <div><h3 style="margin-bottom:8px">${teamLink(g.home)} injuries</h3>${injuriesHTML(g.home_injuries)}</div>
       </div></details>`;
   }).join("");
 }
 
-/* ---------- facts ---------- */
+/* ---------- one rotating stat line ---------- */
 let facts = [], fi = 0;
-async function loadFacts(){ facts = (await getJSON("/api/stats")).facts; fi = 0; showFact(); }
+async function loadFacts(){ facts = (await getJSON("/api/stats")).facts; fi = 0; showFact(); $("#factline").hidden = !facts.length; }
 function showFact(){ if (facts.length){ $("#fact").textContent = facts[fi % facts.length]; fi++; } }
-$("#fact-btn").onclick = showFact; setInterval(showFact, 12000);
+setInterval(showFact, 12000);
 
-/* ---------- charts ---------- */
-let rankChart, eloChart, btChart, teams = ["KC","BUF","PHI","DET"], allTeams = [];
-async function loadRankings(){
-  const d = await getJSON("/api/ratings");
-  allTeams = d.map(x=>x.team).sort();
-  rankChart?.destroy();
-  rankChart = new Chart($("#rank-chart"), {type:"bar",
-    data:{labels:d.map(x=>x.team),datasets:[{data:d.map(x=>x.rating-1500),
-      backgroundColor:d.map(x=>x.rating>=1500?css("--pylon"):css("--sky")),borderRadius:3}]},
-    options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Elo ${Math.round(c.raw+1500)}`}}},
-      onClick:(e,els)=>{ if(els.length) location.href=`/team.html?t=${d[els[0].index].team}`; },
-      scales:{x:{ticks:{callback:v=>v>0?`+${v}`:v},title:{display:true,text:"Rating vs. average (1500)"}},y:{grid:{display:false}}}}});
-  renderChips();
-}
-function renderChips(){
-  const opts = allTeams.filter(t=>!teams.includes(t)).map(t=>`<option>${t}</option>`).join("");
-  $("#chips").innerHTML = teams.map((t,i)=>`<button class="chip" style="border-color:${PALETTE[i]}" data-t="${t}" aria-label="Remove ${t}">${t}<span>×</span></button>`).join("")
-    + (teams.length<6 ? `<select id="add-team" aria-label="Add a team"><option value="">Add team</option>${opts}</select>` : "");
-  document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{teams=teams.filter(t=>t!==b.dataset.t);renderChips();loadElo();});
-  const sel = $("#add-team"); if (sel) sel.onchange = ()=>{ if(sel.value){teams.push(sel.value);renderChips();loadElo();} };
-}
-async function loadElo(){
-  eloChart?.destroy(); if (!teams.length) return;
-  const d = await getJSON(`/api/elo-history?teams=${teams.join(",")}`);
-  const labels = [...new Set(Object.values(d).flat().map(x=>x.label))]
-    .sort((a,b)=>{const [sa,wa]=a.split(" W").map(Number),[sb,wb]=b.split(" W").map(Number);return sa-sb||wa-wb;});
-  eloChart = new Chart($("#elo-chart"), {type:"line",
-    data:{labels,datasets:teams.map((t,i)=>{const m=Object.fromEntries((d[t]||[]).map(x=>[x.label,x.rating]));
-      return {label:t,data:labels.map(l=>m[l]??null),borderColor:PALETTE[i],backgroundColor:PALETTE[i],spanGaps:true,pointRadius:0,borderWidth:2,tension:.2};})},
-    options:{maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{boxWidth:12}}},scales:{x:{ticks:{maxTicksLimit:8}}}}});
-}
-async function loadBacktest(){
-  const d = (await getJSON("/api/backtest")).seasons;
-  btChart?.destroy();
-  const ds = (label,key,color) => ({label,data:d.map(x=>x[key].brier),backgroundColor:color,borderRadius:3});
-  btChart = new Chart($("#bt-chart"), {type:"bar",
-    data:{labels:d.map(x=>x.season),datasets:[ds("Full model","model",css("--pylon")),ds("Elo only","elo","rgba(238,240,230,.45)"),ds("Vegas","vegas",css("--sky"))]},
-    options:{maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12}},
-      tooltip:{callbacks:{afterLabel:c=>`Picked ${pct(d[c.dataIndex][["model","elo","vegas"][c.datasetIndex]].accuracy)} correctly`}}},
-      scales:{y:{min:.19,max:.24}}}});
-}
-
-async function loadAll(){ await Promise.allSettled([loadPicks(), loadFacts(), loadRankings().then(loadElo), loadBacktest()]); }
-loadLive(); loadAll(); loadYourTeams();
-setInterval(loadLive, 20000); setInterval(loadYourTeams, 60000); setInterval(loadAll, 5*60*1000);
+loadLive(); loadYourTeams(); loadPicks(); loadFacts();
+setInterval(loadLive, 20000); setInterval(loadYourTeams, 60000); setInterval(() => { loadPicks(); loadFacts(); }, 5*60*1000);
 </script>
 </body>
 </html>

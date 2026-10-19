@@ -1,13 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12261b">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Predictor">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>News - Sports Predictor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=8">
+<link rel="stylesheet" href="/style.css?v=10">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="/common.js?v=8"></script>
+<script src="/common.js?v=10"></script>
 </head>
 <body>
 <main>
@@ -39,9 +47,15 @@
   <footer>Headlines link to their original sources.</footer>
 </main>
 <script>
-$("#nav").innerHTML = navHTML("News");
 const params = new URLSearchParams(location.search);
+const MINE = params.get("mine") === "1";
+$("#nav").innerHTML = navHTML(MINE ? "My news" : "News");
 let team = (params.get("team") || "").toUpperCase(), canEdit = false;
+if (MINE){
+  document.title = "My news - Sports Predictor";
+  $("h1").textContent = "My news";
+  $("#team").hidden = true;
+}
 getJSON("/api/teams").then(d=>{ $("#team").innerHTML += d.teams.map(t=>t.team).sort().map(t=>`<option ${t===team?"selected":""}>${t}</option>`).join(""); });
 $("#team").onchange = e => { team = e.target.value; history.replaceState(null,"",team?`?team=${team}`:location.pathname); load(); };
 
@@ -57,12 +71,21 @@ function storyHTML(s, mine){
       ${mine && canEdit ? `<button class="del" data-id="${s.id}" aria-label="Delete ${esc(s.title)}">Delete</button>`:""}</div></div></article>`;
 }
 async function load(){
-  const d = await getJSON(`/api/news${team?`?team=${team}`:""}`);
-  canEdit = d.can_edit; $("#add-wrap").hidden = !canEdit;
+  if (MINE){
+    const fav = Fav.get();
+    $("header p").textContent = fav.length ? `Stories about the teams you follow: ${fav.join(", ")}.` : "";
+    if (!fav.length){
+      $("#mine").innerHTML = `<div class="empty">Star a team on the Teams or Standings page to see its news here.</div>`;
+      $("#espn").innerHTML = ""; return;
+    }
+  }
+  const q = MINE ? `?teams=${Fav.get().join(",")}` : team ? `?team=${team}` : "";
+  const d = await getJSON(`/api/news${q}`);
+  canEdit = d.can_edit; $("#add-wrap").hidden = !canEdit || MINE;
   $("#mine").innerHTML = d.mine.length ? d.mine.map(s=>storyHTML(s,true)).join("") :
-    `<div class="empty">${team ? `No saved stories about ${team} yet.` : canEdit ? "No saved stories yet. Add one with the form above." : "No saved stories yet."}</div>`;
+    `<div class="empty">${MINE ? "No saved stories about your teams yet." : team ? `No saved stories about ${team} yet.` : canEdit ? "No saved stories yet. Add one with the form above." : "No saved stories yet."}</div>`;
   $("#espn").innerHTML = d.error && !d.headlines.length ? `<div class="empty">${d.error}</div>` :
-    d.headlines.length ? d.headlines.map(s=>storyHTML(s,false)).join("") : `<div class="empty">No recent ESPN headlines${team?` about ${team}`:""}.</div>`;
+    d.headlines.length ? d.headlines.map(s=>storyHTML(s,false)).join("") : `<div class="empty">No recent ESPN headlines${MINE ? " about your teams" : team ? ` about ${team}` : ""}.</div>`;
   document.querySelectorAll(".del").forEach(b=>b.onclick=async()=>{
     if (!confirm("Delete this story?")) return;
     await fetch(`/api/news/${b.dataset.id}`, {method:"DELETE"}); load(); });
@@ -75,6 +98,7 @@ $("#add").onsubmit = async e => {
   if (r.ok){ e.target.reset(); $("#msg").textContent = "Story saved."; load(); }
   else { const err = await r.json().catch(()=>({})); $("#msg").textContent = typeof err.detail==="string" ? err.detail : "Check the headline and link, then try again."; }
 };
+document.addEventListener("favchange", () => MINE && load());
 load();
 </script>
 </body></html>

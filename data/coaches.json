@@ -1,0 +1,338 @@
+{
+  "_about": "Coaching staffs. Head coaches come from the schedule data automatically; edit this file when a coordinator or play caller changes. off_caller / def_caller: 'HC' if the head coach calls plays, otherwise 'OC' / 'DC'.",
+  "sources": "Staffs and play callers: ran.de, 'Head Coaches, Coordinators, General Manager und Playcaller der Saison 2026' (updated Oct. 8, 2026). Scheme notes: ESPN NFL Nation, 'Who calls plays for every NFL team in 2026?' (Sept. 3, 2026). Defensive coordinators: Wikipedia, 'List of current NFL defensive coordinators'.",
+  "updated": "2026-10-08",
+  "hc_ceo_note": "Delegates play calling on both sides and runs the team as a CEO-style head coach.",
+  "teams": {
+    "BUF": {
+      "off_caller": "HC",
+      "oc": "Pete Carmichael Jr.",
+      "def_caller": "DC",
+      "dc": "Jim Leonhard",
+      "off_scheme": "Run-first on early downs built around Josh Allen: since Brady took over play calling in late 2023, Buffalo has called designed runs on 59% of first downs, the most in the NFL, and led the league in offensive EPA.",
+      "off_tree": "Sean Payton (Saints offensive assistant); called plays in Carolina before Buffalo",
+      "off_philosophy": "First-time head coach keeping the play sheet; added a dedicated run game coordinator this season.",
+      "hc": "Joe Brady"
+    },
+    "MIA": {
+      "off_caller": "OC",
+      "oc": "Bobby Slowik",
+      "def_caller": "HC",
+      "dc": "Sean Duggan",
+      "off_scheme": "Screen-heavy passing game (second-highest screen rate in 2025) built around running back De'Von Achane and the mobility of Malik Willis.",
+      "off_tree": "Kyle Shanahan (49ers); former Texans offensive coordinator",
+      "off_philosophy": "Tailors the offense to his personnel; Houston's top-10 passing offense in C.J. Stroud's rookie year was his.",
+      "hc": "Jeff Hafley",
+      "def_scheme": "Head coach Jeff Hafley calls the defense himself; a first-time NFL head coach who led Boston College for four seasons."
+    },
+    "NE": {
+      "off_caller": "OC",
+      "oc": "Josh McDaniels",
+      "def_caller": "DC",
+      "dc": "Zak Kuhr",
+      "off_scheme": "Veteran system that pushed the ball downfield in 2025 (second-longest average pass distance), with Drake Maye taking more control at the line in year two.",
+      "off_tree": "Bill Belichick (Patriots), in his third stint as New England's coordinator",
+      "off_philosophy": "Game-plan specific; surrounded by former head coaches and coordinators on the offensive staff.",
+      "def_scheme": "First full year as coordinator after taking over defensive play calling during 2025.",
+      "hc_ceo": true,
+      "hc": "Mike Vrabel"
+    },
+    "NYJ": {
+      "off_caller": "OC",
+      "oc": "Frank Reich",
+      "def_caller": "HC",
+      "dc": "Brian Duker",
+      "off_scheme": "Leaning on the run game with more two-tight-end (12 personnel) looks than usual; historically sends five receivers into routes at a very high rate.",
+      "off_philosophy": "Main job is cutting down Geno Smith's interceptions in an offense that ranked 29th in scoring.",
+      "def_scheme": "Head coach Aaron Glenn calls the defense himself, an aggressive, man-coverage-friendly approach from his Lions coordinator days.",
+      "hc": "Aaron Glenn"
+    },
+    "BAL": {
+      "off_caller": "OC",
+      "oc": "Declan Doyle",
+      "def_caller": "HC",
+      "dc": "Anthony Weaver",
+      "off_scheme": "First-time and youngest play caller in the league; moving Lamar Jackson under center far more after years in the pistol, with an emphasis on detail and movement throws.",
+      "off_tree": "Ben Johnson (Bears) and Sean Payton (Broncos, Saints)",
+      "def_scheme": "Head coach Jesse Minter calls the defense, from the Harbaugh and Macdonald school of disguised coverages and simulated pressures.",
+      "hc": "Jesse Minter"
+    },
+    "CIN": {
+      "off_caller": "HC",
+      "def_caller": "DC",
+      "dc": "Al Golden",
+      "off_scheme": "The most pass-heavy offense in football over the past four years (67% designed passes), now hunting more explosive plays with Joe Burrow, Ja'Marr Chase and Tee Higgins.",
+      "off_tree": "Sean McVay (Rams quarterbacks coach)",
+      "off_philosophy": "Has kept play-calling duties through all eight seasons as head coach.",
+      "hc": "Zac Taylor",
+      "oc": "Dan Pitcher"
+    },
+    "CLE": {
+      "off_caller": "HC",
+      "def_caller": "DC",
+      "dc": "Mike Rutenberg",
+      "off_scheme": "Architect of Baltimore's explosive offense (highest designed rush rate in the NFL, 2023-25) and Georgia's national-title offenses.",
+      "off_philosophy": "Known for bending his scheme to fit his players; first-time NFL head coach with a young roster.",
+      "hc": "Todd Monken",
+      "oc": "Travis Switzer"
+    },
+    "PIT": {
+      "off_caller": "HC",
+      "def_caller": "DC",
+      "dc": "Patrick Graham",
+      "off_scheme": "West Coast offense adapted for Aaron Rodgers: quick throws, timing routes and a heavy dose of slants.",
+      "off_tree": "West Coast lineage (Packers, Cowboys)",
+      "off_philosophy": "Long-time play caller who has occasionally handed off the duties and taken them back.",
+      "hc": "Mike McCarthy",
+      "oc": "Brian Angelichio"
+    },
+    "HOU": {
+      "off_caller": "OC",
+      "oc": "Nick Caley",
+      "def_caller": "HC",
+      "dc": "Matt Burke",
+      "off_scheme": "Spread-leaning personnel: three or more receivers on 70% of plays in 2025, the highest rate in the NFL.",
+      "off_tree": "Josh McDaniels and Bill Belichick (Patriots), Sean McVay (Rams)",
+      "def_scheme": "After an 0-4 start, Ryans took over defensive play calling from coordinator Matt Burke. A former 49ers defensive coordinator, he builds around a fast, attacking four-man rush.",
+      "hc_ceo": false,
+      "hc": "DeMeco Ryans",
+      "change": "Play-calling change after an 0-4 start: DeMeco Ryans now calls the defense."
+    },
+    "IND": {
+      "off_caller": "HC",
+      "oc": "Jim Bob Cooter",
+      "def_caller": "DC",
+      "dc": "Lou Anarumo",
+      "off_scheme": "Play-action heavy (second-highest rate since 2023) with yards per play rising every year of his tenure.",
+      "off_philosophy": "Former Chargers and Eagles play caller; the 2025 offense was his most efficient in Indy until the quarterback injury.",
+      "def_scheme": "Multiple, disguise-heavy coverage looks from his Bengals years.",
+      "hc": "Shane Steichen"
+    },
+    "JAX": {
+      "off_caller": "HC",
+      "oc": "Grant Udinski",
+      "def_caller": "DC",
+      "dc": "Anthony Campanile",
+      "off_scheme": "11-personnel offense (three receivers) built for explosive plays; finished 2025 leading the NFL in scoring over an 8-0 closing stretch.",
+      "off_tree": "Sean McVay (Rams offensive coordinator)",
+      "off_philosophy": "Helped Baker Mayfield and then Trevor Lawrence to career years in back-to-back seasons.",
+      "hc": "Liam Coen"
+    },
+    "TEN": {
+      "off_caller": "OC",
+      "oc": "Brian Daboll",
+      "def_caller": "HC",
+      "dc": "Gus Bradley",
+      "off_scheme": "Three-receiver base offense focused on developing Cam Ward in situational football: two-minute, red zone and third down.",
+      "off_tree": "Bill Belichick (Patriots); former Bills coordinator and Giants head coach",
+      "def_scheme": "Head coach Robert Saleh calls the defense: Seattle-tree 4-3 built on a fast, attacking front four.",
+      "hc": "Robert Saleh"
+    },
+    "DEN": {
+      "off_caller": "HC",
+      "oc": "Davis Webb",
+      "def_caller": "DC",
+      "dc": "Vance Joseph",
+      "off_scheme": "Sean Payton's playbook with Webb's tweaks; Bo Nix moves out of the pocket often, and the focus is tempo, the run game and downfield accuracy.",
+      "off_tree": "Sean Payton (Broncos)",
+      "off_philosophy": "Webb opened 2026 as the play caller after Payton handed over the duties, but before Week 5 Payton took back a larger share of the offensive calls.",
+      "def_scheme": "One of the league's most respected defensive play callers, with an aggressive, pressure-oriented approach.",
+      "hc": "Sean Payton",
+      "change": "Play-calling change before Week 5: Sean Payton is calling more of the offense again."
+    },
+    "KC": {
+      "off_caller": "HC",
+      "oc": "Eric Bieniemy",
+      "def_caller": "DC",
+      "dc": "Steve Spagnuolo",
+      "off_scheme": "West Coast system that threw the most screens in the NFL in 2025; this year shifting to more under-center snaps and play-action off the run game.",
+      "off_tree": "Andy Reid is the tree: Nagy, Pederson, Bieniemy and others came from his staffs",
+      "off_philosophy": "28th straight season as his team's play caller, the longest active streak.",
+      "def_scheme": "Blitz-heavy, creative pressure packages.",
+      "def_tree": "Jim Johnson (Eagles)",
+      "hc": "Andy Reid"
+    },
+    "LV": {
+      "off_caller": "HC",
+      "def_caller": "DC",
+      "dc": "Rob Leonard",
+      "off_scheme": "Wide-zone West Coast offense with heavy personnel (12 and 21), bootlegs and outside runs that stretch defenses sideways; won a Super Bowl as Seattle's coordinator in 2025.",
+      "off_tree": "Kyle Shanahan / Gary Kubiak",
+      "hc": "Klint Kubiak",
+      "oc": "Andrew Janocko"
+    },
+    "LAC": {
+      "off_caller": "OC",
+      "oc": "Mike McDaniel",
+      "def_caller": "DC",
+      "dc": "Chris O'Leary",
+      "off_scheme": "Motion, play-action and runs outside the tackles: in Miami his offenses ranked first in play-action rate and outside runs and near the top in motion and screens.",
+      "off_tree": "Kyle Shanahan (49ers)",
+      "hc_ceo": true,
+      "hc": "Jim Harbaugh"
+    },
+    "DAL": {
+      "off_caller": "HC",
+      "def_caller": "DC",
+      "dc": "Christian Parker",
+      "off_scheme": "Up-tempo offense with lots of shifts and motion; second-fastest pace in the NFL since 2024.",
+      "off_philosophy": "Veteran play caller (Jets, Rams, Seahawks) whose first year calling plays in Dallas produced nearly 30 points per game.",
+      "hc": "Brian Schottenheimer",
+      "oc": "Klayton Adams"
+    },
+    "NYG": {
+      "off_caller": "OC",
+      "oc": "Matt Nagy",
+      "def_caller": "DC",
+      "dc": "Dennard Wilson",
+      "off_scheme": "Andy Reid-style West Coast concepts and screens, mixed with Greg Roman's run game and tailored to Jaxson Dart.",
+      "off_tree": "Andy Reid (Chiefs, Eagles)",
+      "hc_ceo": true,
+      "hc": "John Harbaugh"
+    },
+    "PHI": {
+      "off_caller": "OC",
+      "oc": "Sean Mannion",
+      "def_caller": "DC",
+      "dc": "Vic Fangio",
+      "off_scheme": "Brand-new system: heavy play-action, more under center and throws over the middle, elements Philadelphia rarely used with Jalen Hurts.",
+      "off_tree": "Influenced by Sean McVay, Kyle Shanahan and Matt LaFleur (Packers quarterbacks coach)",
+      "off_philosophy": "First-time play caller and a former NFL quarterback.",
+      "def_scheme": "Split-safety (two-high) coverage that disguises late and keeps everything in front, a structure much of the league has copied.",
+      "def_tree": "Vic Fangio is the tree: Staley, Evero and others come from it",
+      "hc_ceo": true,
+      "hc": "Nick Sirianni"
+    },
+    "WAS": {
+      "off_caller": "OC",
+      "oc": "David Blough",
+      "def_caller": "DC",
+      "dc": "Daronte Jones",
+      "off_scheme": "Moving to a play-action, under-center offense with far less no-huddle, while keeping some run-pass options from the previous system.",
+      "off_tree": "Ben Johnson (Lions) and Kevin O'Connell (Vikings)",
+      "off_philosophy": "First-time coordinator and play caller; expect some trick plays in the Ben Johnson mold.",
+      "hc_ceo": true,
+      "hc": "Dan Quinn"
+    },
+    "CHI": {
+      "off_caller": "HC",
+      "oc": "Press Taylor",
+      "def_caller": "DC",
+      "dc": "Dennis Allen",
+      "off_scheme": "Under center often, play-action on nearly a third of dropbacks (second in the NFL) and plenty of motion; one of few head coaches who installs his own run game.",
+      "off_philosophy": "Fifth season calling plays after building Detroit's top offenses as coordinator.",
+      "hc": "Ben Johnson"
+    },
+    "DET": {
+      "off_caller": "OC",
+      "oc": "Drew Petzing",
+      "def_caller": "DC",
+      "dc": "Kelvin Sheppard",
+      "off_scheme": "Physical and multiple, with personnel and focus changing week to week rather than running through one player.",
+      "off_philosophy": "First year in Detroit after three seasons as Arizona's coordinator.",
+      "hc_ceo": true,
+      "hc": "Dan Campbell"
+    },
+    "GB": {
+      "off_caller": "HC",
+      "oc": "Adam Stenavich",
+      "def_caller": "DC",
+      "dc": "Jonathan Gannon",
+      "off_scheme": "Run-leaning (fourth-highest designed rush rate in 2025) and rebuilding the offense from scratch after protection problems last season.",
+      "off_tree": "Kyle Shanahan",
+      "hc": "Matt LaFleur"
+    },
+    "MIN": {
+      "off_caller": "HC",
+      "oc": "Wes Phillips",
+      "def_caller": "DC",
+      "dc": "Brian Flores",
+      "off_scheme": "Under center more than most (third-lowest shotgun rate since 2022), with plays sequenced to set up big shots later in games.",
+      "off_tree": "Sean McVay (Rams)",
+      "off_philosophy": "Historically pass-happy on short yardage, but called more designed runs in 2025.",
+      "def_scheme": "Aggressive pressure packages and constantly changing looks to keep quarterbacks uncomfortable.",
+      "hc": "Kevin O'Connell"
+    },
+    "ATL": {
+      "off_caller": "OC",
+      "oc": "Tommy Rees",
+      "def_caller": "DC",
+      "dc": "Jeff Ulbrich",
+      "off_scheme": "More under center and play-action, and a switch toward a gap-scheme run game; tight ends were heavily involved in his Cleveland offense.",
+      "off_philosophy": "Followed Kevin Stefanski from Cleveland; previously called plays at Notre Dame and Alabama.",
+      "hc_ceo": true,
+      "hc": "Kevin Stefanski"
+    },
+    "CAR": {
+      "off_caller": "OC",
+      "oc": "Brad Idzik",
+      "def_caller": "DC",
+      "dc": "Ejiro Evero",
+      "off_scheme": "First-time play caller running Dave Canales' offense, which led the NFL in fourth-down conversions in 2025.",
+      "off_philosophy": "Head coach Dave Canales handed over the play sheet this offseason; veteran play caller Darrell Bevell is on staff as associate head coach.",
+      "def_scheme": "Two-high, Fangio-style coverage structure.",
+      "hc": "Dave Canales"
+    },
+    "NO": {
+      "off_caller": "HC",
+      "def_caller": "DC",
+      "dc": "Brandon Staley",
+      "off_scheme": "Shotgun-heavy and motion-heavy: no team ran more plays combining the two in 2025.",
+      "off_philosophy": "Has called plays since his Cowboys coordinator days; first full season with Tyler Shough as the starter.",
+      "def_scheme": "Two-high shell with late disguise.",
+      "def_tree": "Vic Fangio",
+      "hc": "Kellen Moore",
+      "oc": "Doug Nussmeier"
+    },
+    "TB": {
+      "off_caller": "OC",
+      "oc": "Zac Robinson",
+      "def_caller": "HC",
+      "dc": null,
+      "off_scheme": "Run-leaning (Atlanta had the fifth-highest designed rush rate under him in 2025), roughly half carryover and half new compared with last year.",
+      "off_tree": "Sean McVay (Rams)",
+      "def_scheme": "Bowles calls the defense himself and has no separate coordinator: blitz-heavy and aggressive.",
+      "hc": "Todd Bowles"
+    },
+    "ARI": {
+      "off_caller": "HC",
+      "def_caller": "DC",
+      "dc": "Nick Rallis",
+      "off_scheme": "Motion-heavy (the Rams led the NFL in motion at the snap while he was coordinator), with one of the league's best skill groups.",
+      "off_tree": "Sean McVay and Kyle Shanahan",
+      "off_philosophy": "First-year head coach; last called plays regularly as the Jets' coordinator in 2021-22.",
+      "hc": "Mike LaFleur",
+      "oc": "Nathaniel Hackett"
+    },
+    "LA": {
+      "off_caller": "HC",
+      "oc": "Nate Scheelhaase",
+      "def_caller": "DC",
+      "dc": "Chris Shula",
+      "off_scheme": "Play-action heavy; injuries in 2025 pushed him into more three-tight-end (13 personnel) plays than any team in nearly two decades.",
+      "off_tree": "Sean McVay is the tree: Zac Taylor, Kevin O'Connell, Liam Coen, Zac Robinson and others",
+      "hc": "Sean McVay"
+    },
+    "SF": {
+      "off_caller": "HC",
+      "oc": "Klay Kubiak",
+      "def_caller": "DC",
+      "dc": "Raheem Morris",
+      "off_scheme": "Wide-zone run game, lots of pre-snap motion and under-center play-action (third-highest under-center rate since 2017).",
+      "off_tree": "Kyle Shanahan is the tree: LaFleur, McDaniel, Kubiak and others",
+      "hc": "Kyle Shanahan"
+    },
+    "SEA": {
+      "off_caller": "OC",
+      "oc": "Brian Fleury",
+      "def_caller": "HC",
+      "dc": "Aden Durde",
+      "off_scheme": "West Coast offense close to Klint Kubiak's 2025 Super Bowl attack, adding more pre-snap motion and two-back sets; the most run-heavy offense in 2025 by designed rush rate.",
+      "off_tree": "Kyle Shanahan (49ers run game coordinator)",
+      "off_philosophy": "First-time coordinator chosen so the scheme wouldn't have to start over.",
+      "def_scheme": "Head coach Mike Macdonald calls the defense: disguised coverages and simulated pressures that make quarterbacks guess.",
+      "def_tree": "John Harbaugh (Ravens)",
+      "hc": "Mike Macdonald"
+    }
+  }
+}
